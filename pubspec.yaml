@@ -55,7 +55,7 @@ dependencies:
   # 多媒体附件：文件选择、拍照、录音、播放
   file_picker: ^8.1.2
   image_picker: ^1.1.2
-  record: ^5.1.2
+  record: ^7.0.0
   audioplayers: ^6.1.0
   video_player: ^2.9.2
 
