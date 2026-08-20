@@ -8,6 +8,10 @@
 .build/
 .buildlog/
 .history
+
+# 本地临时输出（终端重定向产物）
+*_out.txt
+*_out2.txt
 .svn/
 .swiftpm/
 migrate_working_dir/
