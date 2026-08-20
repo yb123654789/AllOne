@@ -1,0 +1,5 @@
+package com.allone.allone
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()

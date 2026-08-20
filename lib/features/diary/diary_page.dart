@@ -1,0 +1,181 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/theme.dart';
+import 'diary_detail_page.dart';
+import 'diary_edit_page.dart';
+import 'diary_models.dart';
+import 'diary_repository.dart';
+import 'diary_templates_page.dart';
+
+/// 日记模块入口页：日记列表。
+class DiaryPage extends ConsumerStatefulWidget {
+  const DiaryPage({super.key});
+
+  @override
+  ConsumerState<DiaryPage> createState() => _DiaryPageState();
+}
+
+class _DiaryPageState extends ConsumerState<DiaryPage> {
+  Future<void> _openNew() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const DiaryEditPage()),
+    );
+  }
+
+  Future<void> _openDetail(DiaryEntry e) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DiaryDetailPage(entry: e)),
+    );
+  }
+
+  Future<void> _confirmDelete(DiaryEntry e) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除日记'),
+        content: Text('确定删除「${e.title.isEmpty ? '无标题' : e.title}」吗？该操作不可恢复。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await ref.read(diaryListProvider.notifier).deleteEntry(e.id);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final async = ref.watch(diaryListProvider);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('日记'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.description_outlined),
+            tooltip: '模板管理',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DiaryTemplatesPage()),
+            ),
+          ),
+        ],
+      ),
+      body: async.when(
+        data: (entries) => entries.isEmpty ? _empty() : _list(entries),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('加载失败：$e')),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _openNew,
+        tooltip: '写日记',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _empty() => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.auto_stories_outlined, size: 64, color: AppTheme.textSecondary.withValues(alpha: 0.4)),
+            const SizedBox(height: 12),
+            const Text('还没有日记', style: TextStyle(color: AppTheme.textSecondary)),
+            const SizedBox(height: 4),
+            const Text('点击右下角 + 开始记录', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+          ],
+        ),
+      );
+
+  Widget _list(List<DiaryEntry> entries) {
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 88),
+      itemCount: entries.length,
+      itemBuilder: (ctx, i) => _card(entries[i]),
+    );
+  }
+
+  Widget _card(DiaryEntry e) {
+    final summary = e.plainText.trim().replaceAll('\n', ' ');
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _openDetail(e),
+        onLongPress: () => _confirmDelete(e),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (e.pinned) ...[
+                    const Icon(Icons.push_pin, size: 16, color: AppTheme.danger),
+                    const SizedBox(width: 4),
+                  ],
+                  if (e.timeStamp.enabled) ...[
+                    const Icon(Icons.schedule, size: 16, color: AppTheme.primary),
+                    const SizedBox(width: 4),
+                  ],
+                  if (e.locationStamp.enabled) ...[
+                    const Icon(Icons.location_on, size: 16, color: Colors.green),
+                    const SizedBox(width: 4),
+                  ],
+                  Expanded(
+                    child: Text(
+                      e.title.isEmpty ? '无标题' : e.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Text(
+                    _fmtDate(e.createdAt),
+                    style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  ),
+                ],
+              ),
+              if (summary.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  summary,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                ),
+              ],
+              if (e.tags.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: e.tags
+                      .map((t) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(t, style: const TextStyle(fontSize: 11, color: AppTheme.primary)),
+                          ))
+                      .toList(),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+}

@@ -1,0 +1,558 @@
+﻿Compiling lib\main.dart for the Web...                          
+flutter.bat : Unexpected wasm dry run failure (252):
+所在位置 行:1 字符: 54
++ ... nt\AllOne"; & "C:\src\flutter\bin\flutter.bat" build web --release 2> ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Unexpected wasm dry run failure ( 
+   252)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+The compiler crashed with: Crash when compiling file:///C:/Users/yb123/AppData/
+Local/Pub/Cache/hosted/pub.dev/html-0.15.6/lib/src/trie.dart at character 
+offset 67:
+RangeError (length): Invalid value: Not in inclusive range 0..23: 24
+
+#0      TypeConstraintGatherer.constrainArguments 
+(package:front_end/src/type_inference/type_constraint_gatherer.dart)
+#1      InferenceVisitorImpl.visitInternalMapLiteral 
+(package:front_end/src/type_inference/inference_visitor.dart:8575)
+#2      InternalMapLiteral.acceptInference 
+(package:front_end/src/kernel/internal_ast.dart:9199)
+#3      InferenceVisitorImpl._inferExpression 
+(package:front_end/src/type_inference/inference_visitor.dart:409)
+#4      InferenceVisitorImpl.inferExpression 
+(package:front_end/src/type_inference/inference_visitor.dart:438)
+#5      InferenceVisitorImpl.inferMapEntry 
+(package:front_end/src/type_inference/inference_visitor.dart:8173)
+#6      InferenceVisitorImpl.visitInternalMapLiteral 
+(package:front_end/src/type_inference/inference_visitor.dart:8432)
+#7      InternalMapLiteral.acceptInference 
+(package:front_end/src/kernel/internal_ast.dart:9199)
+#8      InferenceVisitorImpl._inferExpression 
+(package:front_end/src/type_inference/inference_visitor.dart:409)
+#9      InferenceVisitorImpl.inferExpression 
+(package:front_end/src/type_inference/inference_visitor.dart:438)
+#10     TypeInferrerImpl.inferFieldInitializer 
+(package:front_end/src/type_inference/type_inferrer.dart:232)
+#11     Resolver.buildFieldInitializer 
+(package:front_end/src/kernel/resolver.dart:301)
+#12     RegularFieldDeclaration._buildFieldInitializerFromToken 
+(package:front_end/src/fragment/field/declaration.dart:407)
+#13     RegularFieldDeclaration._computeInferredType 
+(package:front_end/src/fragment/field/declaration.dart:672)
+#14     _ImplicitType.computeType 
+(package:front_end/src/kernel/implicit_field_type.dart:180)
+#15     FieldDeclarationMixin.inferType.<anonymous closure> 
+(package:front_end/src/fragment/field/declaration.dart:860)
+#16     SourceLoader.withUriForCrashReporting 
+(package:front_end/src/source/source_loader.dart:361)
+#17     FieldDeclarationMixin.inferType 
+(package:front_end/src/fragment/field/declaration.dart:851)
+#18     FieldDeclarationMixin.inferTypes 
+(package:front_end/src/fragment/field/declaration.dart:841)
+#19     InferableTypeBuilder.inferType 
+(package:front_end/src/builder/omitted_type_builder.dart:234)
+#20     InferableTypes.inferTypes 
+(package:front_end/src/builder/omitted_type_builder.dart:302)
+#21     SourceLoader.performTopLevelInference 
+(package:front_end/src/source/source_loader.dart:3047)
+#22     KernelTarget.buildOutlines.<anonymous closure> 
+(package:front_end/src/kernel/kernel_target.dart:597)
+#23     withCrashReporting (package:front_end/src/base/crash.dart:85)
+#24     KernelTarget.buildOutlines 
+(package:front_end/src/kernel/kernel_target.dart:434)
+#25     _buildInternal (package:front_end/src/kernel_generator_impl.dart:176)
+#26     generateKernelInternal.<anonymous closure> 
+(package:front_end/src/kernel_generator_impl.dart:136)
+<asynchronous suspension>
+#27     withCrashReporting (package:front_end/src/base/crash.dart:85)
+<asynchronous suspension>
+#28     kernelForProgramInternal.<anonymous closure> 
+(package:front_end/src/api_prototype/kernel_generator.dart:74)
+<asynchronous suspension>
+#29     CompilerContext.clear 
+(package:front_end/src/base/compiler_context.dart:92)
+<asynchronous suspension>
+#30     kernelForProgramInternal 
+(package:front_end/src/api_prototype/kernel_generator.dart:73)
+<asynchronous suspension>
+#31     kernelForProgram 
+(package:front_end/src/api_prototype/kernel_generator.dart:52)
+<asynchronous suspension>
+#32     _runCfePhase (package:dart2wasm/compile.dart:343)
+<asynchronous suspension>
+#33     compile (package:dart2wasm/compile.dart:245)
+<asynchronous suspension>
+#34     generateWasm (package:dart2wasm/generate_wasm.dart:78)
+<asynchronous suspension>
+#35     main (file:///C:/b/s/w/ir/x/w/sdk/pkg/dart2wasm/bin/dart2wasm.dart:10)
+<asynchronous suspension>
+
+
+'record-use' is now enabled by default; this flag is no longer required.
+'record-use' is now enabled by default; this flag is no longer required.
+'record-use' is now enabled by default; this flag is no longer required.
+
+Use --no-wasm-dry-run to disable these warnings.
+Target dart2js failed: ProcessException: Process exited abnormally with exit 
+code -1073740791:
+'record-use' is now enabled by default; this flag is no longer required.
+
+===== CRASH =====
+ExceptionCode=-1073741819, ExceptionFlags=0, ExceptionAddress=000002160C797BE8
+version=3.13.1 (stable) (Tue Aug 18 01:00:59 2026 -0700) on "windows_x64"
+pid=33552, thread=35968, isolate_group=main(000002160AE6D7A0), 
+isolate=main(000002160AE47600)
+os=windows, arch=x64, comp=no, sim=no
+isolate_instructions=2160c2b4000, vm_instructions=0
+fp=db928fd498, sp=db928fd498, pc=2160c797be8
+  pc 0x000002160c797be8 fp 0x000000db928fd498 Unknown symbol
+  pc 0x000002160c78d472 fp 0x000000db928fd4e8 Unknown symbol
+  pc 0x000002160c78e5e1 fp 0x000000db928fd538 Unknown symbol
+  pc 0x000002160c7914cc fp 0x000000db928fd760 Unknown symbol
+  pc 0x000002160c78d472 fp 0x000000db928fd7b0 Unknown symbol
+  pc 0x000002160c7932fd fp 0x000000db928fd800 Unknown symbol
+  pc 0x000002160c79326d fp 0x000000db928fd810 Unknown symbol
+  pc 0x000002160c826012 fp 0x000000db928fd830 Unknown symbol
+  pc 0x000002160c798beb fp 0x000000db928fd840 Unknown symbol
+  pc 0x000002160c78d669 fp 0x000000db928fd878 Unknown symbol
+  pc 0x000002160c7918b0 fp 0x000000db928fd8b8 Unknown symbol
+  pc 0x000002160c7917bc fp 0x000000db928fd900 Unknown symbol
+  pc 0x000002160c821d66 fp 0x000000db928fd920 Unknown symbol
+  pc 0x000002160c797f7f fp 0x000000db928fd930 Unknown symbol
+  pc 0x000002160c78f540 fp 0x000000db928fd968 Unknown symbol
+  pc 0x000002160c78f6c1 fp 0x000000db928fd9a0 Unknown symbol
+  pc 0x000002160c7953d8 fp 0x000000db928fd9b8 Unknown symbol
+  pc 0x000002160c8009cd fp 0x000000db928fd9d0 Unknown symbol
+  pc 0x000002160c800946 fp 0x000000db928fd9f0 Unknown symbol
+  pc 0x000002160c8008c5 fp 0x000000db928fda48 Unknown symbol
+  pc 0x000002160c8007e2 fp 0x000000db928fda70 Unknown symbol
+  pc 0x000002160c79562f fp 0x000000db928fda80 Unknown symbol
+  pc 0x000002160c78d472 fp 0x000000db928fdad0 Unknown symbol
+  pc 0x000002160c78de19 fp 0x000000db928fdb20 Unknown symbol
+  pc 0x000002160c78dcdf fp 0x000000db928fdb48 Unknown symbol
+  pc 0x000002160c7f9bc2 fp 0x000000db928fdb68 Unknown symbol
+  pc 0x000002160c795467 fp 0x000000db928fdb78 Unknown symbol
+  pc 0x000002160c78d472 fp 0x000000db928fdbc8 Unknown symbol
+  pc 0x000002160c78ee7d fp 0x000000db928fdc18 Unknown symbol
+  pc 0x000002160c78e77b fp 0x000000db928fdc38 Unknown symbol
+  pc 0x000002160c79557a fp 0x000000db928fdc58 Unknown symbol
+  pc 0x000002160c79550f fp 0x000000db928fdc68 Unknown symbol
+  pc 0x000002160c78d472 fp 0x000000db928fdcb8 Unknown symbol
+  pc 0x000002160c78d355 fp 0x000000db928fdd08 Unknown symbol
+  pc 0x000002160c78d2c5 fp 0x000000db928fdd18 Unknown symbol
+  pc 0x000002160c795396 fp 0x000000db928fdd38 Unknown symbol
+  pc 0x000002160c79532b fp 0x000000db928fdd48 Unknown symbol
+  pc 0x000002160c78f540 fp 0x000000db928fdd80 Unknown symbol
+  pc 0x000002160c9ee920 fp 0x000000db928fdda8 Unknown symbol
+  pc 0x000002160c9ee8d2 fp 0x000000db928fddf8 Unknown symbol
+  pc 0x000002160c9ee7e9 fp 0x000000db928fde58 Unknown symbol
+  pc 0x000002160c9ee438 fp 0x000000db928fded8 Unknown symbol
+  pc 0x000002160caf00f8 fp 0x000000db928fdf08 Unknown symbol
+  pc 0x000002160c2d3865 fp 0x000000db928fdf80 Unknown symbol
+  pc 0x000002160c2d36ec fp 0x000000db928fdff8 Unknown symbol
+  pc 0x000002160c2d155e fp 0x000000db928fe040 Unknown symbol
+  pc 0x000002160c2d4a84 fp 0x000000db928fe060 Unknown symbol
+  pc 0x000002160caf060a fp 0x000000db928fe078 Unknown symbol
+  pc 0x000002160caff5dd fp 0x000000db928fe098 Unknown symbol
+  pc 0x000002160caf00f8 fp 0x000000db928fe0c8 Unknown symbol
+  pc 0x000002160c2d3865 fp 0x000000db928fe140 Unknown symbol
+  pc 0x000002160c2d36ec fp 0x000000db928fe1b8 Unknown symbol
+  pc 0x000002160c2d155e fp 0x000000db928fe200 Unknown symbol
+  pc 0x000002160c2d4a84 fp 0x000000db928fe220 Unknown symbol
+  pc 0x000002160caf068e fp 0x000000db928fe238 Unknown symbol
+  pc 0x000002160caff5f9 fp 0x000000db928fe258 Unknown symbol
+  pc 0x000002160caf00f8 fp 0x000000db928fe288 Unknown symbol
+  pc 0x000002160c2d31c0 fp 0x000000db928fe308 Unknown symbol
+  pc 0x000002160c2d32c1 fp 0x000000db928fe348 Unknown symbol
+  pc 0x000002160c2d39ee fp 0x000000db928fe3c0 Unknown symbol
+  pc 0x000002160c2d36ec fp 0x000000db928fe438 Unknown symbol
+  pc 0x000002160c2d155e fp 0x000000db928fe480 Unknown symbol
+  pc 0x000002160c2d4a84 fp 0x000000db928fe4a0 Unknown symbol
+  pc 0x000002160caf068e fp 0x000000db928fe4b8 Unknown symbol
+  pc 0x000002160caff5f9 fp 0x000000db928fe4d8 Unknown symbol
+  pc 0x000002160caf00f8 fp 0x000000db928fe508 Unknown symbol
+  pc 0x000002160c2d31c0 fp 0x000000db928fe588 Unknown symbol
+  pc 0x000002160c2d32c1 fp 0x000000db928fe5c8 Unknown symbol
+  pc 0x000002160c2d39ee fp 0x000000db928fe640 Unknown symbol
+  pc 0x000002160c2d36ec fp 0x000000db928fe6b8 Unknown symbol
+  pc 0x000002160c2d155e fp 0x000000db928fe700 Unknown symbol
+  pc 0x000002160c2d4a84 fp 0x000000db928fe720 Unknown symbol
+  pc 0x000002160caf060a fp 0x000000db928fe738 Unknown symbol
+  pc 0x000002160caff5dd fp 0x000000db928fe758 Unknown symbol
+  pc 0x000002160caf00f8 fp 0x000000db928fe788 Unknown symbol
+  pc 0x000002160c2d31c0 fp 0x000000db928fe808 Unknown symbol
+  pc 0x000002160c2d32c1 fp 0x000000db928fe848 Unknown symbol
+  pc 0x000002160c2d39ee fp 0x000000db928fe8c0 Unknown symbol
+  pc 0x000002160c2d36ec fp 0x000000db928fe938 Unknown symbol
+  pc 0x000002160c2d155e fp 0x000000db928fe980 Unknown symbol
+  pc 0x000002160c2d4a84 fp 0x000000db928fe9a0 Unknown symbol
+  pc 0x000002160caf068e fp 0x000000db928fe9b8 Unknown symbol
+  pc 0x000002160caff5f9 fp 0x000000db928fe9d8 Unknown symbol
+  pc 0x000002160caf00f8 fp 0x000000db928fea08 Unknown symbol
+  pc 0x000002160c2d31c0 fp 0x000000db928fea88 Unknown symbol
+  pc 0x000002160c2d32c1 fp 0x000000db928feac8 Unknown symbol
+  pc 0x000002160c2d39ee fp 0x000000db928feb40 Unknown symbol
+  pc 0x000002160c2d36ec fp 0x000000db928febb8 Unknown symbol
+  pc 0x000002160c2d155e fp 0x000000db928fec00 Unknown symbol
+  pc 0x000002160c2d4a84 fp 0x000000db928fec20 Unknown symbol
+  pc 0x000002160caf068e fp 0x000000db928fec38 Unknown symbol
+  pc 0x000002160caff5f9 fp 0x000000db928fec58 Unknown symbol
+  pc 0x000002160caf00f8 fp 0x000000db928fec88 Unknown symbol
+  pc 0x000002160c2d31c0 fp 0x000000db928fed08 Unknown symbol
+  pc 0x000002160c2d32c1 fp 0x000000db928fed48 Unknown symbol
+  pc 0x000002160c2d39ee fp 0x000000db928fedc0 Unknown symbol
+  pc 0x000002160c2d36ec fp 0x000000db928fee38 Unknown symbol
+  pc 0x000002160c2d155e fp 0x000000db928fee80 Unknown symbol
+  pc 0x000002160c2d4a84 fp 0x000000db928feea0 Unknown symbol
+  pc 0x000002160caf060a fp 0x000000db928feeb8 Unknown symbol
+  pc 0x000002160caff5dd fp 0x000000db928feed8 Unknown symbol
+  pc 0x000002160caf00f8 fp 0x000000db928fef08 Unknown symbol
+  pc 0x000002160c2d31c0 fp 0x000000db928fef88 Unknown symbol
+  pc 0x000002160c2d32c1 fp 0x000000db928fefc8 Unknown symbol
+  pc 0x000002160caf1492 fp 0x000000db928ff040 Unknown symbol
+  pc 0x000002160c2d403c fp 0x000000db928ff0b8 Unknown symbol
+  pc 0x000002160c2d4100 fp 0x000000db928ff0f0 Unknown symbol
+  pc 0x000002160c8773d2 fp 0x000000db928ff150 Unknown symbol
+  pc 0x000002160c884b39 fp 0x000000db928ff178 Unknown symbol
+  pc 0x000002160c2cfca9 fp 0x000000db928ff198 Unknown symbol
+  pc 0x000002160c2cfb19 fp 0x000000db928ff1e8 Unknown symbol
+  pc 0x000002160c2cfadf fp 0x000000db928ff1f8 Unknown symbol
+  pc 0x000002160c2e8365 fp 0x000000db928ff210 Unknown symbol
+  pc 0x000002160cafe091 fp 0x000000db928ff238 Unknown symbol
+  pc 0x000002160cb0363b fp 0x000000db928ff360 Unknown symbol
+-- End of DumpStackTrace
+  pc 0x000002160c797be8 fp 0x000000db928fd498 sp 0x000000db928fd498 
+[Optimized] ConstantExpression.accept1+0x24
+  pc 0x000002160c78d472 fp 0x000000db928fd4e8 sp 0x000000db928fd4a8 
+[Optimized] RemovingTransformer.transformList+0x106
+  pc 0x000002160c78e5e1 fp 0x000000db928fd538 sp 0x000000db928fd4f8 
+[Optimized] RemovingTransformer.transformExpressionList+0x79
+  pc 0x000002160c7914cc fp 0x000000db928fd760 sp 0x000000db928fd548 
+[Optimized] Arguments.transformOrRemoveChildren+0x40
+  pc 0x000002160c78d472 fp 0x000000db928fd7b0 sp 0x000000db928fd770 
+[Optimized] RemovingTransformer.transformList+0x106
+  pc 0x000002160c7932fd fp 0x000000db928fd800 sp 0x000000db928fd7c0 
+[Optimized] RemovingTransformer.transformStatementList+0x79
+  pc 0x000002160c79326d fp 0x000000db928fd810 sp 0x000000db928fd810 
+[Optimized] AssertBlock.transformOrRemoveChildren+0x1d
+  pc 0x000002160c826012 fp 0x000000db928fd830 sp 0x000000db928fd820 
+[Optimized] _MixinApplication29&Object&TreeVisitor1DefaultMixin&ExpressionVisit
+or1DefaultMixin&PatternVisitor1DefaultMixin&StatementVisitor1DefaultMixin@11335
+3248.visitBlock+0x5a
+  pc 0x000002160c798beb fp 0x000000db928fd840 sp 0x000000db928fd840 
+[Optimized] Block.accept1+0x2b
+  pc 0x000002160c78d669 fp 0x000000db928fd878 sp 0x000000db928fd850 
+[Optimized] RemovingTransformer.transformOrRemove+0x91
+  pc 0x000002160c7918b0 fp 0x000000db928fd8b8 sp 0x000000db928fd888 
+[Optimized] RemovingTransformer.transformOrRemoveStatement+0x6c
+  pc 0x000002160c7917bc fp 0x000000db928fd900 sp 0x000000db928fd8c8 
+[Optimized] FunctionNode.transformOrRemoveChildren+0x1c8
+  pc 0x000002160c821d66 fp 0x000000db928fd920 sp 0x000000db928fd910 
+[Optimized] _MixinApplication26&Object&TreeVisitor1DefaultMixin@113353248.visit
+FunctionNode+0x5a
+  pc 0x000002160c797f7f fp 0x000000db928fd930 sp 0x000000db928fd930 
+[Optimized] FunctionNode.accept1+0x2b
+  pc 0x000002160c78f540 fp 0x000000db928fd968 sp 0x000000db928fd940 
+[Optimized] RemovingTransformer.transform+0x94
+  pc 0x000002160c78f6c1 fp 0x000000db928fd9a0 sp 0x000000db928fd978 
+[Optimized] Procedure.transformOrRemoveChildren+0x59
+  pc 0x000002160c7953d8 fp 0x000000db928fd9b8 sp 0x000000db928fd9b0 
+[Optimized] RemovingTransformer.defaultTreeNode+0x30
+  pc 0x000002160c8009cd fp 0x000000db928fd9d0 sp 0x000000db928fd9c8 
+[Optimized] ConstConditionalSimplifier.defaultMember.<anonymous closure>+0x4d
+  pc 0x000002160c800946 fp 0x000000db928fd9f0 sp 0x000000db928fd9e0 
+[Optimized] ConstantEvaluator.inStaticTypeContext+0x56
+  pc 0x000002160c8008c5 fp 0x000000db928fda48 sp 0x000000db928fda00 
+[Optimized] ConstConditionalSimplifier.defaultMember+0xd5
+  pc 0x000002160c8007e2 fp 0x000000db928fda70 sp 0x000000db928fda58 
+[Optimized] _MixinApplication32&Object&TreeVisitor1DefaultMixin&ExpressionVisit
+or1DefaultMixin&PatternVisitor1DefaultMixin&StatementVisitor1DefaultMixin&Varia
+bleVisitor1DefaultMixin&InitializerVisitor1DefaultMixin&MemberVisitor1DefaultMi
+xin@113353248.visitProcedure+0x62
+  pc 0x000002160c79562f fp 0x000000db928fda80 sp 0x000000db928fda80 
+[Optimized] Procedure.accept1+0x2b
+  pc 0x000002160c78d472 fp 0x000000db928fdad0 sp 0x000000db928fda90 
+[Optimized] RemovingTransformer.transformList+0x106
+  pc 0x000002160c78de19 fp 0x000000db928fdb20 sp 0x000000db928fdae0 
+[Optimized] RemovingTransformer.transformProcedureList+0x79
+  pc 0x000002160c78dcdf fp 0x000000db928fdb48 sp 0x000000db928fdb30 
+[Optimized] Class.transformOrRemoveChildren+0x1a3
+  pc 0x000002160c7f9bc2 fp 0x000000db928fdb68 sp 0x000000db928fdb58 
+[Optimized] 
+_MixinApplication26&Object&TreeVisitor1DefaultMixin@113353248.visitClass+0x5a
+  pc 0x000002160c795467 fp 0x000000db928fdb78 sp 0x000000db928fdb78 
+[Optimized] Class.accept1+0x2b
+  pc 0x000002160c78d472 fp 0x000000db928fdbc8 sp 0x000000db928fdb88 
+[Optimized] RemovingTransformer.transformList+0x106
+  pc 0x000002160c78ee7d fp 0x000000db928fdc18 sp 0x000000db928fdbd8 
+[Optimized] RemovingTransformer.transformClassList+0x79
+  pc 0x000002160c78e77b fp 0x000000db928fdc38 sp 0x000000db928fdc28 
+[Optimized] Library.transformOrRemoveChildren+0x7f
+  pc 0x000002160c79557a fp 0x000000db928fdc58 sp 0x000000db928fdc48 
+[Optimized] 
+_MixinApplication26&Object&TreeVisitor1DefaultMixin@113353248.visitLibrary+0x5a
+  pc 0x000002160c79550f fp 0x000000db928fdc68 sp 0x000000db928fdc68 
+[Optimized] Library.accept1+0x1f
+  pc 0x000002160c78d472 fp 0x000000db928fdcb8 sp 0x000000db928fdc78 
+[Optimized] RemovingTransformer.transformList+0x106
+  pc 0x000002160c78d355 fp 0x000000db928fdd08 sp 0x000000db928fdcc8 
+[Optimized] RemovingTransformer.transformLibraryList+0x79
+  pc 0x000002160c78d2c5 fp 0x000000db928fdd18 sp 0x000000db928fdd18 
+[Optimized] Component.transformOrRemoveChildren+0x1d
+  pc 0x000002160c795396 fp 0x000000db928fdd38 sp 0x000000db928fdd28 
+[Optimized] _MixinApplication26&Object&TreeVisitor1DefaultMixin@113353248.visit
+Component+0x5a
+  pc 0x000002160c79532b fp 0x000000db928fdd48 sp 0x000000db928fdd48 
+[Optimized] Component.accept1+0x1f
+  pc 0x000002160c78f540 fp 0x000000db928fdd80 sp 0x000000db928fdd58 
+[Optimized] RemovingTransformer.transform+0x94
+  pc 0x000002160c9ee920 fp 0x000000db928fdda8 sp 0x000000db928fdd90 
+[Optimized] ConstConditionalSimplifier.run+0x34
+  pc 0x000002160c9ee8d2 fp 0x000000db928fddf8 sp 0x000000db928fddb8 
+[Optimized] _simplifyConstConditionals@96269656+0xce
+  pc 0x000002160c9ee7e9 fp 0x000000db928fde58 sp 0x000000db928fde08 
+[Optimized] _doTransformsOnKernelLoad@96269656+0x1a1
+  pc 0x000002160c9ee438 fp 0x000000db928fded8 sp 0x000000db928fde68 
+[Optimized] _loadFromSource@96269656+0x33c
+  pc 0x000002160caf00f8 fp 0x000000db928fdf08 sp 0x000000db928fdee8 
+[Optimized] _SuspendState@5048458._createAsyncStarCallback@5048458.<anonymous 
+closure>+0x48
+  pc 0x000002160c2d3865 fp 0x000000db928fdf80 sp 0x000000db928fdf18 
+[Optimized] _FutureListener@5048458.handleValue+0xe9
+  pc 0x000002160c2d36ec fp 0x000000db928fdff8 sp 0x000000db928fdf90 
+[Optimized] 
+_Future@5048458._propagateToListeners@5048458.handleValueCallback+0x34
+  pc 0x000002160c2d155e fp 0x000000db928fe040 sp 0x000000db928fe008 
+[Optimized] _Future@5048458._propagateToListeners@5048458+0x35a
+  pc 0x000002160c2d4a84 fp 0x000000db928fe060 sp 0x000000db928fe050 
+[Optimized] _Future@5048458._completeWithValue@5048458+0x74
+  pc 0x000002160caf060a fp 0x000000db928fe078 sp 0x000000db928fe070 
+[Optimized] _SuspendState@5048458._returnAsyncNotFuture@5048458+0x46
+  pc 0x000002160caff5dd fp 0x000000db928fe098 sp 0x000000db928fe088 [Stub] 
+ReturnAsyncNotFuture+0x15
+  pc 0x000002160caf00f8 fp 0x000000db928fe0c8 sp 0x000000db928fe0a8 
+[Optimized] _SuspendState@5048458._createAsyncStarCallback@5048458.<anonymous 
+closure>+0x48
+  pc 0x000002160c2d3865 fp 0x000000db928fe140 sp 0x000000db928fe0d8 
+[Optimized] _FutureListener@5048458.handleValue+0xe9
+  pc 0x000002160c2d36ec fp 0x000000db928fe1b8 sp 0x000000db928fe150 
+[Optimized] 
+_Future@5048458._propagateToListeners@5048458.handleValueCallback+0x34
+  pc 0x000002160c2d155e fp 0x000000db928fe200 sp 0x000000db928fe1c8 
+[Optimized] _Future@5048458._propagateToListeners@5048458+0x35a
+  pc 0x000002160c2d4a84 fp 0x000000db928fe220 sp 0x000000db928fe210 
+[Optimized] _Future@5048458._completeWithValue@5048458+0x74
+  pc 0x000002160caf068e fp 0x000000db928fe238 sp 0x000000db928fe230 
+[Optimized] _SuspendState@5048458._returnAsync@5048458+0x72
+  pc 0x000002160caff5f9 fp 0x000000db928fe258 sp 0x000000db928fe248 [Stub] 
+ReturnAsync+0x15
+  pc 0x000002160caf00f8 fp 0x000000db928fe288 sp 0x000000db928fe268 
+[Optimized] _SuspendState@5048458._createAsyncStarCallback@5048458.<anonymous 
+closure>+0x48
+  pc 0x000002160c2d31c0 fp 0x000000db928fe308 sp 0x000000db928fe298 
+[Optimized] _rootRunUnary@5048458+0x6c
+  pc 0x000002160c2d32c1 fp 0x000000db928fe348 sp 0x000000db928fe318 
+[Optimized] _rootRunUnary@5048458+0x91
+  pc 0x000002160c2d39ee fp 0x000000db928fe3c0 sp 0x000000db928fe358 
+[Optimized] _FutureListener@5048458.handleValue+0x272
+  pc 0x000002160c2d36ec fp 0x000000db928fe438 sp 0x000000db928fe3d0 
+[Optimized] 
+_Future@5048458._propagateToListeners@5048458.handleValueCallback+0x34
+  pc 0x000002160c2d155e fp 0x000000db928fe480 sp 0x000000db928fe448 
+[Optimized] _Future@5048458._propagateToListeners@5048458+0x35a
+  pc 0x000002160c2d4a84 fp 0x000000db928fe4a0 sp 0x000000db928fe490 
+[Optimized] _Future@5048458._completeWithValue@5048458+0x74
+  pc 0x000002160caf068e fp 0x000000db928fe4b8 sp 0x000000db928fe4b0 
+[Optimized] _SuspendState@5048458._returnAsync@5048458+0x72
+  pc 0x000002160caff5f9 fp 0x000000db928fe4d8 sp 0x000000db928fe4c8 [Stub] 
+ReturnAsync+0x15
+  pc 0x000002160caf00f8 fp 0x000000db928fe508 sp 0x000000db928fe4e8 
+[Optimized] _SuspendState@5048458._createAsyncStarCallback@5048458.<anonymous 
+closure>+0x48
+  pc 0x000002160c2d31c0 fp 0x000000db928fe588 sp 0x000000db928fe518 
+[Optimized] _rootRunUnary@5048458+0x6c
+  pc 0x000002160c2d32c1 fp 0x000000db928fe5c8 sp 0x000000db928fe598 
+[Optimized] _rootRunUnary@5048458+0x91
+  pc 0x000002160c2d39ee fp 0x000000db928fe640 sp 0x000000db928fe5d8 
+[Optimized] _FutureListener@5048458.handleValue+0x272
+  pc 0x000002160c2d36ec fp 0x000000db928fe6b8 sp 0x000000db928fe650 
+[Optimized] 
+_Future@5048458._propagateToListeners@5048458.handleValueCallback+0x34
+  pc 0x000002160c2d155e fp 0x000000db928fe700 sp 0x000000db928fe6c8 
+[Optimized] _Future@5048458._propagateToListeners@5048458+0x35a
+  pc 0x000002160c2d4a84 fp 0x000000db928fe720 sp 0x000000db928fe710 
+[Optimized] _Future@5048458._completeWithValue@5048458+0x74
+  pc 0x000002160caf060a fp 0x000000db928fe738 sp 0x000000db928fe730 
+[Optimized] _SuspendState@5048458._returnAsyncNotFuture@5048458+0x46
+  pc 0x000002160caff5dd fp 0x000000db928fe758 sp 0x000000db928fe748 [Stub] 
+ReturnAsyncNotFuture+0x15
+  pc 0x000002160caf00f8 fp 0x000000db928fe788 sp 0x000000db928fe768 
+[Optimized] _SuspendState@5048458._createAsyncStarCallback@5048458.<anonymous 
+closure>+0x48
+  pc 0x000002160c2d31c0 fp 0x000000db928fe808 sp 0x000000db928fe798 
+[Optimized] _rootRunUnary@5048458+0x6c
+  pc 0x000002160c2d32c1 fp 0x000000db928fe848 sp 0x000000db928fe818 
+[Optimized] _rootRunUnary@5048458+0x91
+  pc 0x000002160c2d39ee fp 0x000000db928fe8c0 sp 0x000000db928fe858 
+[Optimized] _FutureListener@5048458.handleValue+0x272
+  pc 0x000002160c2d36ec fp 0x000000db928fe938 sp 0x000000db928fe8d0 
+[Optimized] 
+_Future@5048458._propagateToListeners@5048458.handleValueCallback+0x34
+  pc 0x000002160c2d155e fp 0x000000db928fe980 sp 0x000000db928fe948 
+[Optimized] _Future@5048458._propagateToListeners@5048458+0x35a
+  pc 0x000002160c2d4a84 fp 0x000000db928fe9a0 sp 0x000000db928fe990 
+[Optimized] _Future@5048458._completeWithValue@5048458+0x74
+  pc 0x000002160caf068e fp 0x000000db928fe9b8 sp 0x000000db928fe9b0 
+[Optimized] _SuspendState@5048458._returnAsync@5048458+0x72
+  pc 0x000002160caff5f9 fp 0x000000db928fe9d8 sp 0x000000db928fe9c8 [Stub] 
+ReturnAsync+0x15
+  pc 0x000002160caf00f8 fp 0x000000db928fea08 sp 0x000000db928fe9e8 
+[Optimized] _SuspendState@5048458._createAsyncStarCallback@5048458.<anonymous 
+closure>+0x48
+  pc 0x000002160c2d31c0 fp 0x000000db928fea88 sp 0x000000db928fea18 
+[Optimized] _rootRunUnary@5048458+0x6c
+  pc 0x000002160c2d32c1 fp 0x000000db928feac8 sp 0x000000db928fea98 
+[Optimized] _rootRunUnary@5048458+0x91
+  pc 0x000002160c2d39ee fp 0x000000db928feb40 sp 0x000000db928fead8 
+[Optimized] _FutureListener@5048458.handleValue+0x272
+  pc 0x000002160c2d36ec fp 0x000000db928febb8 sp 0x000000db928feb50 
+[Optimized] 
+_Future@5048458._propagateToListeners@5048458.handleValueCallback+0x34
+  pc 0x000002160c2d155e fp 0x000000db928fec00 sp 0x000000db928febc8 
+[Optimized] _Future@5048458._propagateToListeners@5048458+0x35a
+  pc 0x000002160c2d4a84 fp 0x000000db928fec20 sp 0x000000db928fec10 
+[Optimized] _Future@5048458._completeWithValue@5048458+0x74
+  pc 0x000002160caf068e fp 0x000000db928fec38 sp 0x000000db928fec30 
+[Optimized] _SuspendState@5048458._returnAsync@5048458+0x72
+  pc 0x000002160caff5f9 fp 0x000000db928fec58 sp 0x000000db928fec48 [Stub] 
+ReturnAsync+0x15
+  pc 0x000002160caf00f8 fp 0x000000db928fec88 sp 0x000000db928fec68 
+[Optimized] _SuspendState@5048458._createAsyncStarCallback@5048458.<anonymous 
+closure>+0x48
+  pc 0x000002160c2d31c0 fp 0x000000db928fed08 sp 0x000000db928fec98 
+[Optimized] _rootRunUnary@5048458+0x6c
+  pc 0x000002160c2d32c1 fp 0x000000db928fed48 sp 0x000000db928fed18 
+[Optimized] _rootRunUnary@5048458+0x91
+  pc 0x000002160c2d39ee fp 0x000000db928fedc0 sp 0x000000db928fed58 
+[Optimized] _FutureListener@5048458.handleValue+0x272
+  pc 0x000002160c2d36ec fp 0x000000db928fee38 sp 0x000000db928fedd0 
+[Optimized] 
+_Future@5048458._propagateToListeners@5048458.handleValueCallback+0x34
+  pc 0x000002160c2d155e fp 0x000000db928fee80 sp 0x000000db928fee48 
+[Optimized] _Future@5048458._propagateToListeners@5048458+0x35a
+  pc 0x000002160c2d4a84 fp 0x000000db928feea0 sp 0x000000db928fee90 
+[Optimized] _Future@5048458._completeWithValue@5048458+0x74
+  pc 0x000002160caf060a fp 0x000000db928feeb8 sp 0x000000db928feeb0 
+[Optimized] _SuspendState@5048458._returnAsyncNotFuture@5048458+0x46
+  pc 0x000002160caff5dd fp 0x000000db928feed8 sp 0x000000db928feec8 [Stub] 
+ReturnAsyncNotFuture+0x15
+  pc 0x000002160caf00f8 fp 0x000000db928fef08 sp 0x000000db928feee8 
+[Optimized] _SuspendState@5048458._createAsyncStarCallback@5048458.<anonymous 
+closure>+0x48
+  pc 0x000002160c2d31c0 fp 0x000000db928fef88 sp 0x000000db928fef18 
+[Optimized] _rootRunUnary@5048458+0x6c
+  pc 0x000002160c2d32c1 fp 0x000000db928fefc8 sp 0x000000db928fef98 
+[Optimized] _rootRunUnary@5048458+0x91
+  pc 0x000002160caf1492 fp 0x000000db928ff040 sp 0x000000db928fefd8 
+[Optimized] _SuspendState@5048458._awaitCompletedFuture@5048458.run+0x262
+  pc 0x000002160c2d403c fp 0x000000db928ff0b8 sp 0x000000db928ff050 
+[Optimized] _rootRun@5048458+0x8c
+  pc 0x000002160c2d4100 fp 0x000000db928ff0f0 sp 0x000000db928ff0c8 
+[Optimized] _rootRun@5048458+0x88
+  pc 0x000002160c8773d2 fp 0x000000db928ff150 sp 0x000000db928ff100 
+[Optimized] _CustomZone@5048458.run+0x19e
+  pc 0x000002160c884b39 fp 0x000000db928ff178 sp 0x000000db928ff160 
+[Optimized] _CustomZone@5048458.bindCallback.<anonymous closure>+0x3d
+  pc 0x000002160c2cfca9 fp 0x000000db928ff198 sp 0x000000db928ff188 
+[Optimized] _microtaskLoop@5048458+0xd9
+  pc 0x000002160c2cfb19 fp 0x000000db928ff1e8 sp 0x000000db928ff1a8 
+[Optimized] _startMicrotaskLoop@5048458+0x29
+  pc 0x000002160c2cfadf fp 0x000000db928ff1f8 sp 0x000000db928ff1f8 
+[Optimized] _startMicrotaskLoop@5048458+0x13
+  pc 0x000002160c2e8365 fp 0x000000db928ff210 sp 0x000000db928ff208 
+[Optimized] _runPendingImmediateCallback@1026248+0x4d
+  pc 0x000002160cafe091 fp 0x000000db928ff238 sp 0x000000db928ff220 
+[Optimized] _RawReceivePort@1026248._handleMessage@1026248+0xcd
+  pc 0x000002160cb0363b fp 0x000000db928ff360 sp 0x000000db928ff248 [Stub] 
+Entry frame
+  Command: C:\src\flutter\bin\cache\dart-sdk\bin\dart.exe compile js 
+--platform-binaries=C:\src\flutter\bin\cache\flutter_web_sdk\kernel 
+--invoker=flutter_tool -Ddart.vm.product=true -DFLUTTER_BUILD_NAME=1.0.0 
+-DFLUTTER_BUILD_NUMBER=1 -DFLUTTER_VERSION=3.47.1 -DFLUTTER_CHANNEL=stable 
+-DFLUTTER_GIT_URL=https://github.com/flutter/flutter.git 
+-DFLUTTER_FRAMEWORK_REVISION=6655482ec0 -DFLUTTER_ENGINE_REVISION=5d53178869 
+-DFLUTTER_DART_VERSION=3.13.1 -DFLUTTER_WEB_USE_SKIA=true 
+-DFLUTTER_WEB_USE_SKWASM=false -DFLUTTER_WEB_CANVASKIT_URL=https://www.gstatic.
+com/flutter-canvaskit/5d531788691ec3404cac0cee66ead4007b177363/ 
+--write-resources --enable-experiment=record-use --native-null-assertions 
+--no-source-maps -O4 --minify -o C:\VScode\SoftwareDevelopment\AllOne\.dart_too
+l\flutter_build\57e7d1d476676c525c8a6cc1723d8aea\app.dill 
+--packages=C:\VScode\SoftwareDevelopment\AllOne\.dart_tool\package_config.json 
+--cfe-only C:\VScode\SoftwareDevelopment\AllOne\.dart_tool\flutter_build\57e7d1
+d476676c525c8a6cc1723d8aea\main.dart
+#0      RunResult.throwException 
+(package:flutter_tools/src/base/process.dart:153:5)
+#1      _DefaultProcessUtils.run 
+(package:flutter_tools/src/base/process.dart:379:19)
+<asynchronous suspension>
+#2      Dart2JSTarget.build 
+(package:flutter_tools/src/build_system/targets/web.dart:225:5)
+<asynchronous suspension>
+#3      _BuildInstance._invokeInternal 
+(package:flutter_tools/src/build_system/build_system.dart:937:9)
+<asynchronous suspension>
+#4      Future.wait.<anonymous closure> (dart:async/future.dart:567:21)
+<asynchronous suspension>
+#5      _BuildInstance.invokeTarget 
+(package:flutter_tools/src/build_system/build_system.dart:875:32)
+<asynchronous suspension>
+#6      Future.wait.<anonymous closure> (dart:async/future.dart:567:21)
+<asynchronous suspension>
+#7      _BuildInstance.invokeTarget 
+(package:flutter_tools/src/build_system/build_system.dart:875:32)
+<asynchronous suspension>
+#8      Future.wait.<anonymous closure> (dart:async/future.dart:567:21)
+<asynchronous suspension>
+#9      _BuildInstance.invokeTarget 
+(package:flutter_tools/src/build_system/build_system.dart:875:32)
+<asynchronous suspension>
+#10     FlutterBuildSystem.build 
+(package:flutter_tools/src/build_system/build_system.dart:684:16)
+<asynchronous suspension>
+#11     WebBuilder.buildWeb (package:flutter_tools/src/web/compile.dart:107:34)
+<asynchronous suspension>
+#12     BuildWebCommand.runCommand 
+(package:flutter_tools/src/commands/build_web.dart:293:5)
+<asynchronous suspension>
+#13     FlutterCommand.run.<anonymous closure> 
+(package:flutter_tools/src/runner/flutter_command.dart:1663:27)
+<asynchronous suspension>
+#14     AppContext.run.<anonymous closure> 
+(package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#15     CommandRunner.runCommand (package:args/command_runner.dart:212:13)
+<asynchronous suspension>
+#16     FlutterCommandRunner.runCommand.<anonymous closure> 
+(package:flutter_tools/src/runner/flutter_command_runner.dart:496:9)
+<asynchronous suspension>
+#17     AppContext.run.<anonymous closure> 
+(package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#18     FlutterCommandRunner.runCommand 
+(package:flutter_tools/src/runner/flutter_command_runner.dart:431:5)
+<asynchronous suspension>
+#19     FlutterCommandRunner.run.<anonymous closure> 
+(package:flutter_tools/src/runner/flutter_command_runner.dart:307:33)
+<asynchronous suspension>
+#20     run.<anonymous closure>.<anonymous closure> 
+(package:flutter_tools/runner.dart:104:11)
+<asynchronous suspension>
+#21     AppContext.run.<anonymous closure> 
+(package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#22     main (package:flutter_tools/executable.dart:103:3)
+<asynchronous suspension>
+
+Compiling lib\main.dart for the Web...                             13.3s
+Error: Failed to compile application for the Web.
