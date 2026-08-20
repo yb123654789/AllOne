@@ -4,10 +4,20 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>AllOne 需要使用相机来拍摄照片并插入到日记或待办中。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AllOne 需要使用麦克风来录制语音，添加到日记或待办附件中。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>AllOne 需要访问相册以选择照片和视频作为附件。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>AllOne 需要保存媒体文件到相册。</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>AllOne 需要使用位置信息在地图上标记日记或待办的地点。</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Allone</string>
+	<string>AllOne</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +25,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>allone</string>
+	<string>AllOne</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

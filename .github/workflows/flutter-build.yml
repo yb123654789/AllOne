@@ -1,0 +1,67 @@
+name: Build AllOne
+
+# 云编译：推送代码后自动构建 Windows 桌面版 + Android APK，
+# 产物在 Actions 页面下载（绿色勾选 -> 底部 Artifacts）。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # 也支持手动触发
+
+jobs:
+  # —— Windows 桌面版 ——
+  build-windows:
+    name: 构建 Windows 桌面版 (.exe)
+    runs-on: windows-latest # 自带 Visual Studio 工具链
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.1'
+
+      - name: 获取依赖
+        run: flutter pub get
+
+      - name: 构建 Windows 版
+        run: flutter build windows --release
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: AllOne-Windows
+          path: build/windows/x64/runner/Release/
+
+  # —— Android APK ——
+  build-android:
+    name: 构建 Android APK (.apk)
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.1'
+
+      - name: 获取依赖
+        run: flutter pub get
+
+      - name: 构建 Android APK
+        run: flutter build apk --release
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: AllOne-Android
+          path: build/app/outputs/flutter-apk/*.apk
