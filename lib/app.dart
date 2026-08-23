@@ -48,19 +48,26 @@ class HomeShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final index = ref.watch(homeTabIndexProvider);
+    final nav =
+        ref.watch(navSettingsProvider).valueOrNull ?? const NavSettings();
+    var visible = bottomBarFeatures(nav);
+    // 防止全部隐藏导致空导航
+    if (visible.isEmpty) visible = List.of(kAppFeatures);
+    final currentKey = ref.watch(homeTabProvider);
+    final index = visible.indexWhere((f) => f.key == currentKey);
+    final safeIndex = index < 0 ? 0 : index;
     final children = [
-      for (final f in kAppFeatures) _pages[f.key] ?? const SizedBox.shrink(),
+      for (final f in visible) _pages[f.key] ?? const SizedBox.shrink(),
     ];
     return Scaffold(
-      body: IndexedStack(index: index, children: children),
+      body: IndexedStack(index: safeIndex, children: children),
       drawer: const AppDrawer(),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
+        selectedIndex: safeIndex,
         onDestinationSelected: (i) =>
-            ref.read(homeTabIndexProvider.notifier).state = i,
+            ref.read(homeTabProvider.notifier).state = visible[i].key,
         destinations: [
-          for (final f in kAppFeatures)
+          for (final f in visible)
             NavigationDestination(
               icon: Icon(f.icon),
               selectedIcon: Icon(f.selectedIcon),
@@ -213,30 +220,25 @@ class _AppDrawerState extends ConsumerState<AppDrawer> {
   /// 侧边栏的功能入口（按 [NavSettings] 过滤显示）；点击跳转到对应 tab。
   List<Widget> _sidebarFeatureTiles() {
     final nav = ref.watch(navSettingsProvider).valueOrNull ?? const NavSettings();
-    final current = ref.watch(homeTabIndexProvider);
+    final current = ref.watch(homeTabProvider);
     return [
       for (final f in kAppFeatures)
         if (nav.isSidebarVisible(f.key))
           ListTile(
             leading: Icon(
-              current == kAppFeatures.indexOf(f)
-                  ? f.selectedIcon
-                  : f.icon,
-              color: current == kAppFeatures.indexOf(f)
-                  ? AppTheme.primary
-                  : null,
+              current == f.key ? f.selectedIcon : f.icon,
+              color: current == f.key ? AppTheme.primary : null,
             ),
             title: Text(
               f.label,
-              style: current == kAppFeatures.indexOf(f)
+              style: current == f.key
                   ? const TextStyle(color: AppTheme.primary)
                   : null,
             ),
-            selected: current == kAppFeatures.indexOf(f),
+            selected: current == f.key,
             onTap: () {
               Navigator.pop(context);
-              ref.read(homeTabIndexProvider.notifier).state =
-                  kAppFeatures.indexOf(f);
+              ref.read(homeTabProvider.notifier).state = f.key;
             },
           ),
     ];

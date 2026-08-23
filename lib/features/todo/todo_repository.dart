@@ -47,15 +47,34 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
     await _persist(_removeTree(tree, id));
   }
 
-  /// 设置任意节点状态（顶层 / 子任务递归定位）
+  /// 设置任意节点状态（顶层 / 子任务递归定位）。
+  /// 若标记为完成（done），会向上自动传播：父节点的所有直接子任务均完成时，父节点自动完成。
   Future<void> setStatus(String id, TodoStatus status) async {
     final tree = state.valueOrNull ?? [];
+    var newTree = _mapTree(
+      tree,
+      id,
+      (e) => e.copyWith(status: status, updatedAt: DateTime.now()),
+    );
+    if (status == TodoStatus.done) {
+      newTree = _autoCompleteParents(newTree, id);
+    }
+    await _persist(newTree);
+  }
+
+  /// 把 id 节点（含整棵子树）移入回收站（archived）
+  Future<void> archiveItem(String id) async {
+    final tree = state.valueOrNull ?? [];
     await _persist(
-      _mapTree(
-        tree,
-        id,
-        (e) => e.copyWith(status: status, updatedAt: DateTime.now()),
-      ),
+      _mapTree(tree, id, (e) => _withSubtreeStatus(e, TodoStatus.archived)),
+    );
+  }
+
+  /// 把 id 节点（含整棵子树）从回收站恢复（pending）
+  Future<void> restoreItem(String id) async {
+    final tree = state.valueOrNull ?? [];
+    await _persist(
+      _mapTree(tree, id, (e) => _withSubtreeStatus(e, TodoStatus.pending)),
     );
   }
 
@@ -109,6 +128,46 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
       out.add(i.copyWith(children: _removeTree(i.children, id)));
     }
     return out;
+  }
+
+  /// 递归设置整棵子树状态（用于归档 / 恢复）
+  TodoItem _withSubtreeStatus(TodoItem node, TodoStatus status) {
+    return node.copyWith(
+      status: status,
+      children: node.children
+          .map((c) => _withSubtreeStatus(c, status))
+          .toList(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  /// 向上传播「子任务全部完成 → 父节点自动完成」。
+  /// 仅沿包含 [id] 的分支回溯；沿途若某父节点的所有直接子任务均完成，
+  /// 则把该父节点自动置为 done（已归档的节点不改变）。
+  List<TodoItem> _autoCompleteParents(List<TodoItem> items, String id) {
+    return [
+      for (final i in items)
+        if (i.id == id)
+          i
+        else
+          _maybeCompleteParent(i, _autoCompleteParents(i.children, id)),
+    ];
+  }
+
+  TodoItem _maybeCompleteParent(TodoItem node, List<TodoItem> newChildren) {
+    if (node.status == TodoStatus.archived) {
+      return node.copyWith(children: newChildren);
+    }
+    final allDone = newChildren.isNotEmpty &&
+        newChildren.every((c) => c.status == TodoStatus.done);
+    if (allDone && node.status != TodoStatus.done) {
+      return node.copyWith(
+        children: newChildren,
+        status: TodoStatus.done,
+        updatedAt: DateTime.now(),
+      );
+    }
+    return node.copyWith(children: newChildren);
   }
 
   /// 持久化：重写所有顶层文件，并删除已不存在的顶层文件。

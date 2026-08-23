@@ -12,6 +12,7 @@ import '../../core/theme.dart';
 import '../../core/utils/media_utils.dart';
 import '../../core/widgets/location_map_picker.dart';
 import '../../core/widgets/location_map_view.dart';
+import '../../core/widgets/tag_dialogs.dart';
 import 'diary_models.dart';
 import 'diary_repository.dart';
 
@@ -33,7 +34,6 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
   late final String _entryId;
   late final TextEditingController _titleCtrl;
   late final TextEditingController _plainCtrl;
-  late final TextEditingController _tagInput;
   final List<String> _tags = [];
   final List<MediaAttachment> _media = [];
 
@@ -53,7 +53,6 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
     _entryId = e?.id ?? AppPaths.newId();
     _titleCtrl = TextEditingController(text: e?.title ?? '');
     _plainCtrl = TextEditingController(text: e?.plainText ?? '');
-    _tagInput = TextEditingController();
     if (e != null) {
       _tags.addAll(e.tags);
       _media.addAll(e.media);
@@ -76,7 +75,6 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
   void dispose() {
     _titleCtrl.dispose();
     _plainCtrl.dispose();
-    _tagInput.dispose();
     super.dispose();
   }
 
@@ -205,14 +203,6 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
           ),
         );
       });
-    }
-  }
-
-  void _addTag() {
-    final t = _tagInput.text.trim();
-    if (t.isNotEmpty && !_tags.contains(t)) {
-      setState(() => _tags.add(t));
-      _tagInput.clear();
     }
   }
 
@@ -429,50 +419,21 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
 
   // —— 各设置对话框 ——
 
-  void _showTagDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('标签戳'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Wrap(
-              spacing: 6,
-              children: _tags
-                  .map(
-                    (t) => InputChip(
-                      label: Text(t),
-                      onDeleted: () {
-                        setState(() => _tags.remove(t));
-                      },
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _tagInput,
-                    decoration: const InputDecoration(hintText: '输入标签后回车'),
-                    onSubmitted: (_) => _addTag(),
-                  ),
-                ),
-                IconButton(onPressed: _addTag, icon: const Icon(Icons.add)),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('完成'),
-          ),
-        ],
-      ),
+  Future<void> _showTagDialog() async {
+    // 收集全部已有标签（含各日记），支持模糊搜索复用
+    final allTags = ref
+            .read(diaryListProvider)
+            .valueOrNull
+            ?.expand((e) => e.tags)
+            .toSet() ??
+        <String>{};
+    final result = await showTagPicker(
+      context,
+      allTags: allTags.toList(),
+      initial: List.of(_tags),
+      title: '标签戳',
     );
+    if (result != null) setState(() => _tags..clear()..addAll(result));
   }
 
   void _showTimeStampDialog() {

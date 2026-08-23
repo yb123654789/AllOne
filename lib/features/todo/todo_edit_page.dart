@@ -14,6 +14,19 @@ import 'todo_models.dart';
 import 'todo_repository.dart';
 import 'todo_templates_page.dart';
 
+/// 递归收集待办树中全部标签（含子任务），用于标签检索复用。
+Set<String> _collectAllTags(List<TodoItem> items) {
+  final set = <String>{};
+  void walk(List<TodoItem> list) {
+    for (final t in list) {
+      set.addAll(t.tags);
+      walk(t.children);
+    }
+  }
+  walk(items);
+  return set;
+}
+
 /// 待办编辑页（也用于编辑子任务 / 新建子任务）。
 /// 传入 [parent] 时表示新建该父任务下的子任务。
 class TodoEditPage extends ConsumerStatefulWidget {
@@ -574,60 +587,141 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
   }
 
   void _showTagDialog() {
+    // 收集全部已有标签（含子任务），便于检索复用
+    final allTags = _collectAllTags(
+      ref.read(todoListProvider).valueOrNull ?? const [],
+    );
+    // 搜索关键词（提升到方法作用域，跨 rebuild 保持，供模糊过滤）
+    var query = '';
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('标签'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Wrap(
-              spacing: 6,
-              children: _tags
-                  .map(
-                    (t) => InputChip(
-                      label: Text(t),
-                      onDeleted: () => setState(() => _tags.remove(t)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) {
+          final candidates = allTags
+              .where(
+                (t) =>
+                    query.isEmpty ||
+                    t.toLowerCase().contains(query.toLowerCase()),
+              )
+              .toList()
+            ..sort();
+          return AlertDialog(
+            title: const Text('标签'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    decoration: const InputDecoration(
+                      hintText: '搜索已有标签（模糊匹配，避免忘记标签名）…',
+                      prefixIcon: Icon(Icons.search, size: 20),
+                      isDense: true,
                     ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _tagInput,
-                    decoration: const InputDecoration(hintText: '输入标签后回车'),
-                    onSubmitted: (_) {
-                      final s = _tagInput.text.trim();
-                      if (s.isNotEmpty && !_tags.contains(s)) {
-                        setState(() => _tags.add(s));
-                        _tagInput.clear();
-                      }
-                    },
+                    onChanged: (v) => setDialog(() => query = v),
                   ),
-                ),
-                IconButton(
-                  onPressed: () {
-                    final s = _tagInput.text.trim();
-                    if (s.isNotEmpty && !_tags.contains(s)) {
-                      setState(() => _tags.add(s));
-                      _tagInput.clear();
-                    }
-                  },
-                  icon: const Icon(Icons.add),
-                ),
-              ],
+                  if (_tags.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      '已选标签',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: _tags
+                          .map(
+                            (t) => InputChip(
+                              label: Text(t),
+                              onDeleted: () =>
+                                  setDialog(() => _tags.remove(t)),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
+                  if (allTags.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      '已有标签（点击添加）',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: candidates
+                              .map(
+                                (t) => ActionChip(
+                                  label: Text(t),
+                                  avatar: _tags.contains(t)
+                                      ? const Icon(
+                                          Icons.check,
+                                          size: 14,
+                                          color: AppTheme.primary,
+                                        )
+                                      : null,
+                                  onPressed: _tags.contains(t)
+                                      ? null
+                                      : () => setDialog(() => _tags.add(t)),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _tagInput,
+                          decoration: const InputDecoration(
+                            hintText: '输入新标签后回车',
+                          ),
+                          onSubmitted: (_) {
+                            final s = _tagInput.text.trim();
+                            if (s.isNotEmpty && !_tags.contains(s)) {
+                              setDialog(() => _tags.add(s));
+                              _tagInput.clear();
+                            }
+                          },
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          final s = _tagInput.text.trim();
+                          if (s.isNotEmpty && !_tags.contains(s)) {
+                            setDialog(() => _tags.add(s));
+                            _tagInput.clear();
+                          }
+                        },
+                        icon: const Icon(Icons.add),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('完成'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('完成'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

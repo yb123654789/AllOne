@@ -63,23 +63,45 @@ const List<AppFeature> kAppFeatures = [
   ),
 ];
 
-/// 导航可见性配置：控制各功能是否显示在**侧边栏**。
-/// 未配置的项默认显示（`isSidebarVisible` 返回 true）。
+/// 导航可见性配置：控制各功能是否显示在**底部导航栏 / 侧边栏**。
+/// 未配置的项默认显示（`isBottomBarVisible` / `isSidebarVisible` 返回 true）。
 class NavSettings {
+  /// 是否显示在底部导航栏（底边栏）
+  final Map<String, bool> bottomBarVisible;
+
+  /// 是否显示在侧边栏 ☰
   final Map<String, bool> sidebarVisible;
 
-  const NavSettings({this.sidebarVisible = const {}});
+  const NavSettings({
+    this.bottomBarVisible = const {},
+    this.sidebarVisible = const {},
+  });
 
+  /// 功能是否显示在底部导航栏
+  bool isBottomBarVisible(String key) => bottomBarVisible[key] ?? true;
+
+  /// 功能是否显示在侧边栏 ☰
   bool isSidebarVisible(String key) => sidebarVisible[key] ?? true;
 
   factory NavSettings.fromJson(Map<String, dynamic>? j) {
     if (j == null) return const NavSettings();
-    final map = <String, bool>{};
-    (j['sidebarVisible'] as Map?)?.forEach((k, v) {
-      if (v is bool) map[k.toString()] = v;
+    final bottom = <String, bool>{};
+    (j['bottomBarVisible'] as Map?)?.forEach((k, v) {
+      if (v is bool) bottom[k.toString()] = v;
     });
-    return NavSettings(sidebarVisible: map);
+    final sidebar = <String, bool>{};
+    (j['sidebarVisible'] as Map?)?.forEach((k, v) {
+      if (v is bool) sidebar[k.toString()] = v;
+    });
+    return NavSettings(bottomBarVisible: bottom, sidebarVisible: sidebar);
   }
 
-  Map<String, dynamic> toJson() => {'sidebarVisible': sidebarVisible};
+  Map<String, dynamic> toJson() => {
+        'bottomBarVisible': bottomBarVisible,
+        'sidebarVisible': sidebarVisible,
+      };
 }
+
+/// 底部导航栏可见功能列表（按 [NavSettings] 过滤，顺序保持 [kAppFeatures]）。
+List<AppFeature> bottomBarFeatures(NavSettings nav) =>
+    kAppFeatures.where((f) => nav.isBottomBarVisible(f.key)).toList();

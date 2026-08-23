@@ -9,6 +9,7 @@ import '../../core/storage/app_paths.dart';
 import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
 import '../../core/utils/media_utils.dart';
+import '../../core/widgets/tag_dialogs.dart';
 import 'habit_models.dart';
 import 'habit_repository.dart';
 
@@ -170,6 +171,22 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
     }
   }
 
+  /// 从已有标签中检索复用（支持模糊搜索）
+  Future<void> _showTagPicker() async {
+    final allTags = ref
+            .read(habitListProvider)
+            .valueOrNull
+            ?.expand((h) => h.tags)
+            .toSet() ??
+        <String>{};
+    final result = await showTagPicker(
+      context,
+      allTags: allTags.toList(),
+      initial: List.of(_tags),
+    );
+    if (result != null) setState(() => _tags..clear()..addAll(result));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -239,6 +256,7 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
           Wrap(
             spacing: 6,
             runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               for (final t in _tags)
                 InputChip(
@@ -252,6 +270,15 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
                   decoration: const InputDecoration(hintText: '加标签后回车'),
                   onSubmitted: (_) => _addTag(),
                 ),
+              ),
+              ActionChip(
+                avatar: const Icon(
+                  Icons.search,
+                  size: 18,
+                  color: AppTheme.primary,
+                ),
+                label: const Text('从已有标签选择'),
+                onPressed: _showTagPicker,
               ),
             ],
           ),

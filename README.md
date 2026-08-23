@@ -89,7 +89,23 @@ flutter run          # 在已连接的设备 / 模拟器运行
 - 地址戳默认使用在线瓦片；需要**完全离线**时，将标准 XYZ 瓦片放入
   `AllOneData/map_tiles/{z}/{x}/{y}.png`（可用 Mobile Atlas Creator / OSMAnd 等导出）。
 
-## 📄 文档
+## � 发布产物（`release/`）
+
+| 平台 | 文件 | 说明 |
+|------|------|------|
+| **Windows** | `release/windows/AllOne_Setup_v1.0.0.exe` | Inno Setup 安装包：安装向导（简体中文）、开始菜单 / 桌面快捷方式、卸载程序（注册到控制面板）；**安装时自动创建** `文档\AllOneData` 数据目录结构，**卸载时自动删除**程序与数据目录 |
+| **Android** | `release/android/AllOne_v1.0.0.apk` | Release APK（当前使用 debug 签名，可直接安装到手机测试） |
+
+> 安装 / 卸载 / 数据目录的打包逻辑见 `installer/AllOne_setup.iss`（Inno Setup 脚本）。
+
+## 🔨 构建
+
+- **Windows 安装包**（需 Inno Setup 6，ISCC）：`flutter build windows --release` 后运行 `ISCC.exe installer/AllOne_setup.iss`
+- **Android APK**：`flutter build apk --release`
+  - 环境要求：JDK 17 + Android SDK（compileSdk 36 / build-tools / platform-tools）
+  - 已知问题：插件 `file_picker`（8.x）硬编码 `compileSdk 34`，与本项目所需的 36 冲突时，需将 pub 缓存中该插件 `android/build.gradle` 的 `compileSdk 34` 改为 `36`（或升级到 12.x 并适配新 API）
+
+## �📄 文档
 
 - [需求规格](docs/REQUIREMENTS.md)
 - [架构设计](docs/ARCHITECTURE.md)

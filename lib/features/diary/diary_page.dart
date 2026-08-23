@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../../core/widgets/tag_dialogs.dart';
 import 'diary_detail_page.dart';
 import 'diary_edit_page.dart';
 import 'diary_models.dart';
@@ -17,6 +18,9 @@ class DiaryPage extends ConsumerStatefulWidget {
 }
 
 class _DiaryPageState extends ConsumerState<DiaryPage> {
+  /// 多标签交叉筛选（AND：必须同时包含全部所选标签）
+  Set<String> _filterTags = {};
+
   Future<void> _openNew() async {
     await Navigator.push(
       context,
@@ -63,6 +67,15 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
         title: const Text('日记'),
         actions: [
           IconButton(
+            icon: Badge(
+              isLabelVisible: _filterTags.isNotEmpty,
+              label: Text('${_filterTags.length}'),
+              child: const Icon(Icons.filter_alt_outlined),
+            ),
+            tooltip: '按标签筛选（多标签交叉）',
+            onPressed: _showTagFilterDialog,
+          ),
+          IconButton(
             icon: const Icon(Icons.description_outlined),
             tooltip: '模板管理',
             onPressed: () => Navigator.push(
@@ -106,11 +119,70 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
   );
 
   Widget _list(List<DiaryEntry> entries) {
-    return ListView.builder(
+    final filtered = entries
+        .where((e) => _filterTags.every((t) => e.tags.contains(t)))
+        .toList();
+    if (filtered.isEmpty) {
+      return Center(
+        child: Text(
+          _filterTags.isEmpty ? '没有日记' : '没有匹配的日记（请调整筛选标签）',
+          style: const TextStyle(color: AppTheme.textSecondary),
+        ),
+      );
+    }
+    return ListView(
       padding: const EdgeInsets.only(bottom: 88),
-      itemCount: entries.length,
-      itemBuilder: (ctx, i) => _card(entries[i]),
+      children: [
+        if (_filterTags.isNotEmpty) _tagFilterBar(),
+        for (final e in filtered) _card(e),
+      ],
     );
+  }
+
+  /// 多标签筛选条：显示已选标签，可单独移除或一键清除
+  Widget _tagFilterBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          const Text(
+            '标签筛选：',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
+          for (final t in _filterTags)
+            InputChip(
+              label: Text(t),
+              visualDensity: VisualDensity.compact,
+              onDeleted: () => setState(() => _filterTags.remove(t)),
+            ),
+          ActionChip(
+            avatar: const Icon(Icons.clear_all, size: 16),
+            label: const Text('清除'),
+            visualDensity: VisualDensity.compact,
+            onPressed: () => setState(() => _filterTags.clear()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 多标签交叉筛选对话框
+  Future<void> _showTagFilterDialog() async {
+    final allTags = ref
+            .read(diaryListProvider)
+            .valueOrNull
+            ?.expand((e) => e.tags)
+            .toSet() ??
+        <String>{};
+    final result = await showTagFilterDialog(
+      context,
+      allTags: allTags.toList(),
+      initial: Set.of(_filterTags),
+    );
+    if (result != null) setState(() => _filterTags..clear()..addAll(result));
   }
 
   Widget _card(DiaryEntry e) {

@@ -3,24 +3,47 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/common.dart';
 import '../../core/theme.dart';
+import '../../core/widgets/tag_dialogs.dart';
 import 'habit_edit_page.dart';
 import 'habit_models.dart';
 import 'habit_repository.dart';
 
 /// 习惯模块入口页：习惯列表 + 打卡。
-class HabitPage extends ConsumerWidget {
+class HabitPage extends ConsumerStatefulWidget {
   const HabitPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HabitPage> createState() => _HabitPageState();
+}
+
+class _HabitPageState extends ConsumerState<HabitPage> {
+  /// 多标签交叉筛选（AND：必须同时包含全部所选标签）
+  Set<String> _filterTags = {};
+
+  @override
+  Widget build(BuildContext context) {
     final habitsAsync = ref.watch(habitListProvider);
     final checkinAsync = ref.watch(habitCheckinProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('习惯')),
+      appBar: AppBar(
+        title: const Text('习惯'),
+        actions: [
+          IconButton(
+            icon: Badge(
+              isLabelVisible: _filterTags.isNotEmpty,
+              label: Text('${_filterTags.length}'),
+              child: const Icon(Icons.filter_alt_outlined),
+            ),
+            tooltip: '按标签筛选（多标签交叉）',
+            onPressed: _showTagFilterDialog,
+          ),
+        ],
+      ),
       body: habitsAsync.when(
         data: (habits) => checkinAsync.when(
-          data: (checkins) =>
-              habits.isEmpty ? _empty() : _list(context, ref, habits, checkins),
+          data: (checkins) => habits.isEmpty
+              ? _empty()
+              : _list(context, ref, habits, checkins),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('加载失败：$e')),
         ),
@@ -60,16 +83,82 @@ class HabitPage extends ConsumerWidget {
     Map<String, CheckinMap> checkins,
   ) {
     final today = AppTime.dateOnly(DateTime.now());
-    return ListView.builder(
+    final filtered = habits
+        .where((h) => _filterTags.every((t) => h.tags.contains(t)))
+        .toList();
+    if (filtered.isEmpty) {
+      return Center(
+        child: Text(
+          _filterTags.isEmpty ? '没有习惯' : '没有匹配的习惯（请调整筛选标签）',
+          style: const TextStyle(color: AppTheme.textSecondary),
+        ),
+      );
+    }
+    return ListView(
       padding: const EdgeInsets.only(bottom: 88),
-      itemCount: habits.length,
-      itemBuilder: (ctx, i) {
-        final h = habits[i];
-        final cm = checkins[h.id] ?? const CheckinMap();
-        final doneToday = (cm.entries[today] ?? 0) > 0;
-        return _card(context, ref, h, cm, doneToday);
-      },
+      children: [
+        if (_filterTags.isNotEmpty) _tagFilterBar(),
+        for (final h in filtered)
+          _habitCard(context, ref, h, checkins, today),
+      ],
     );
+  }
+
+  Widget _habitCard(
+    BuildContext context,
+    WidgetRef ref,
+    Habit h,
+    Map<String, CheckinMap> checkins,
+    String today,
+  ) {
+    final cm = checkins[h.id] ?? const CheckinMap();
+    return _card(context, ref, h, cm, (cm.entries[today] ?? 0) > 0);
+  }
+
+  /// 多标签筛选条：显示已选标签，可单独移除或一键清除
+  Widget _tagFilterBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          const Text(
+            '标签筛选：',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
+          for (final t in _filterTags)
+            InputChip(
+              label: Text(t),
+              visualDensity: VisualDensity.compact,
+              onDeleted: () => setState(() => _filterTags.remove(t)),
+            ),
+          ActionChip(
+            avatar: const Icon(Icons.clear_all, size: 16),
+            label: const Text('清除'),
+            visualDensity: VisualDensity.compact,
+            onPressed: () => setState(() => _filterTags.clear()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 多标签交叉筛选对话框
+  Future<void> _showTagFilterDialog() async {
+    final allTags = ref
+            .read(habitListProvider)
+            .valueOrNull
+            ?.expand((h) => h.tags)
+            .toSet() ??
+        <String>{};
+    final result = await showTagFilterDialog(
+      context,
+      allTags: allTags.toList(),
+      initial: Set.of(_filterTags),
+    );
+    if (result != null) setState(() => _filterTags..clear()..addAll(result));
   }
 
   Widget _card(

@@ -6,27 +6,127 @@ import 'todo_edit_page.dart';
 import 'todo_models.dart';
 import 'todo_repository.dart';
 import 'todo_templates_page.dart';
+import 'todo_trash_page.dart';
+
+/// 模糊匹配：标题 / 内容 / 标签是否包含关键词
+bool _matchTodo(TodoItem e, String query) {
+  if (query.trim().isEmpty) return true;
+  final q = query.trim().toLowerCase();
+  return e.title.toLowerCase().contains(q) ||
+      e.contentPlain.toLowerCase().contains(q) ||
+      e.tags.any((t) => t.toLowerCase().contains(q));
+}
+
+/// 节点是否包含全部筛选标签（多标签交叉，AND 逻辑；空集合恒真）
+bool _tagMatchTodo(TodoItem e, Set<String> tags) =>
+    tags.every((t) => e.tags.contains(t));
+
+/// 子树中是否存在匹配（父不匹配但子任务匹配时父也保留显示）。
+/// [query] 关键词模糊匹配，[tags] 多标签交叉（AND）筛选。
+bool _subtreeMatchTodo(TodoItem e, String query, Set<String> tags) =>
+    (_matchTodo(e, query) && _tagMatchTodo(e, tags)) ||
+    e.children.any((c) => _subtreeMatchTodo(c, query, tags));
+
+/// 递归收集待办树中全部标签（含子任务），用于标签筛选
+Set<String> _collectTodoTags(List<TodoItem> items) {
+  final set = <String>{};
+  void walk(List<TodoItem> list) {
+    for (final t in list) {
+      set.addAll(t.tags);
+      walk(t.children);
+    }
+  }
+  walk(items);
+  return set;
+}
 
 /// 待办事项模块入口页（树形：任务链 = 嵌套了子任务的普通待办）。
-class TodoPage extends ConsumerWidget {
+class TodoPage extends ConsumerStatefulWidget {
   const TodoPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TodoPage> createState() => _TodoPageState();
+}
+
+class _TodoPageState extends ConsumerState<TodoPage> {
+  bool _showSearch = false;
+  String _query = '';
+
+  /// 多标签交叉筛选（AND：必须同时包含全部所选标签）
+  Set<String> _filterTags = {};
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(todoListProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('待办事项'),
+        title: Text(_showSearch ? '' : '待办事项'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.description_outlined),
-            tooltip: '待办模板',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const TodoTemplatesPage()),
+            icon: Badge(
+              isLabelVisible: _filterTags.isNotEmpty,
+              label: Text('${_filterTags.length}'),
+              child: const Icon(Icons.filter_alt_outlined),
             ),
+            tooltip: '按标签筛选（多标签交叉）',
+            onPressed: _showTagFilterDialog,
           ),
+          if (_showSearch)
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: '取消搜索',
+              onPressed: () => setState(() {
+                _showSearch = false;
+                _query = '';
+              }),
+            )
+          else ...[
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: '搜索',
+              onPressed: () => setState(() => _showSearch = true),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_outlined),
+              tooltip: '回收站',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TodoTrashPage()),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.description_outlined),
+              tooltip: '待办模板',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TodoTemplatesPage()),
+              ),
+            ),
+          ],
         ],
+        bottom: _showSearch
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(60),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+                  child: TextField(
+                    autofocus: true,
+                    onChanged: (v) => setState(() => _query = v),
+                    decoration: InputDecoration(
+                      hintText: '搜索标题 / 内容 / 标签（模糊匹配）…',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.black.withValues(alpha: 0.04),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : null,
       ),
       body: async.when(
         data: (items) => items.isEmpty ? _empty() : _list(context, ref, items),
@@ -60,13 +160,27 @@ class TodoPage extends ConsumerWidget {
   );
 
   Widget _list(BuildContext context, WidgetRef ref, List<TodoItem> items) {
-    final pending = items.where((e) => e.status != TodoStatus.done).toList();
-    final done = items.where((e) => e.status == TodoStatus.done).toList();
+    final pending = items
+        .where(
+          (e) =>
+              e.status == TodoStatus.pending &&
+              _subtreeMatchTodo(e, _query, _filterTags),
+        )
+        .toList();
+    final done = items
+        .where(
+          (e) =>
+              e.status == TodoStatus.done &&
+              _subtreeMatchTodo(e, _query, _filterTags),
+        )
+        .toList();
     return ListView(
       padding: const EdgeInsets.only(bottom: 88),
       children: [
+        if (_filterTags.isNotEmpty) _tagFilterBar(),
         if (pending.isNotEmpty) ...[
-          for (final e in pending) _TodoNode(item: e, depth: 0),
+          for (final e in pending)
+            _TodoNode(item: e, depth: 0, query: _query, tags: _filterTags),
         ],
         if (done.isNotEmpty) ...[
           const Padding(
@@ -76,10 +190,160 @@ class TodoPage extends ConsumerWidget {
               style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
             ),
           ),
-          for (final e in done) _TodoNode(item: e, depth: 0),
+          for (final e in done)
+            _TodoNode(item: e, depth: 0, query: _query, tags: _filterTags),
         ],
+        if (pending.isEmpty && done.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(40),
+            child: Center(
+              child: Text(
+                _filterTags.isEmpty && _query.trim().isEmpty
+                    ? '没有待办'
+                    : '没有匹配的待办（请调整关键词或筛选标签）',
+                style: const TextStyle(color: AppTheme.textSecondary),
+              ),
+            ),
+          ),
       ],
     );
+  }
+
+  /// 多标签筛选条：显示已选标签，可单独移除或一键清除
+  Widget _tagFilterBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          const Text(
+            '标签筛选：',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
+          for (final t in _filterTags)
+            InputChip(
+              label: Text(t),
+              visualDensity: VisualDensity.compact,
+              onDeleted: () => setState(() => _filterTags.remove(t)),
+            ),
+          ActionChip(
+            avatar: const Icon(Icons.clear_all, size: 16),
+            label: const Text('清除'),
+            visualDensity: VisualDensity.compact,
+            onPressed: () => setState(() => _filterTags.clear()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 按标签交叉筛选对话框：多选标签（AND 交集），支持模糊搜索
+  Future<void> _showTagFilterDialog() async {
+    final allTags = _collectTodoTags(
+      ref.read(todoListProvider).valueOrNull ?? const [],
+    );
+    var query = '';
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) {
+          final candidates = allTags
+              .where(
+                (t) =>
+                    query.isEmpty ||
+                    t.toLowerCase().contains(query.toLowerCase()),
+              )
+              .toList()
+            ..sort();
+          return AlertDialog(
+            title: const Text('按标签筛选（交叉）'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '勾选多个标签：只显示同时包含全部所选标签的待办',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    decoration: const InputDecoration(
+                      hintText: '搜索标签（模糊匹配）…',
+                      prefixIcon: Icon(Icons.search, size: 20),
+                      isDense: true,
+                    ),
+                    onChanged: (v) => setDialog(() => query = v),
+                  ),
+                  if (_filterTags.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: _filterTags
+                          .map(
+                            (t) => InputChip(
+                              label: Text(t),
+                              onDeleted: () =>
+                                  setDialog(() => _filterTags.remove(t)),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  if (candidates.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Text(
+                        '还没有标签',
+                        style: TextStyle(color: AppTheme.textSecondary),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: candidates
+                              .map(
+                                (t) => FilterChip(
+                                  label: Text(t),
+                                  selected: _filterTags.contains(t),
+                                  onSelected: (v) => setDialog(() {
+                                    if (v) {
+                                      _filterTags.add(t);
+                                    } else {
+                                      _filterTags.remove(t);
+                                    }
+                                  }),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('完成'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (mounted) setState(() {});
   }
 }
 
@@ -87,8 +351,15 @@ class TodoPage extends ConsumerWidget {
 class _TodoNode extends ConsumerStatefulWidget {
   final TodoItem item;
   final int depth;
+  final String query;
+  final Set<String> tags;
 
-  const _TodoNode({required this.item, required this.depth});
+  const _TodoNode({
+    required this.item,
+    required this.depth,
+    this.query = '',
+    this.tags = const {},
+  });
 
   @override
   ConsumerState<_TodoNode> createState() => _TodoNodeState();
@@ -256,10 +527,18 @@ class _TodoNodeState extends ConsumerState<_TodoNode> {
         ),
         if (_expanded)
           for (final c in e.children)
-            Padding(
-              padding: EdgeInsets.only(left: (widget.depth * 16).toDouble()),
-              child: _TodoNode(item: c, depth: widget.depth + 1),
-            ),
+            if (_subtreeMatchTodo(c, widget.query, widget.tags))
+              Padding(
+                padding: EdgeInsets.only(
+                  left: (widget.depth * 16).toDouble(),
+                ),
+                child: _TodoNode(
+                  item: c,
+                  depth: widget.depth + 1,
+                  query: widget.query,
+                  tags: widget.tags,
+                ),
+              ),
       ],
     );
   }
@@ -277,7 +556,18 @@ class _TodoNodeState extends ConsumerState<_TodoNode> {
               onTap: () => Navigator.pop(ctx, 'add'),
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline, color: AppTheme.danger),
+              leading: const Icon(
+                Icons.archive_outlined,
+                color: AppTheme.primary,
+              ),
+              title: const Text('移到回收站'),
+              onTap: () => Navigator.pop(ctx, 'archive'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.delete_outline,
+                color: AppTheme.danger,
+              ),
               title: const Text('删除'),
               onTap: () => Navigator.pop(ctx, 'delete'),
             ),
@@ -291,6 +581,8 @@ class _TodoNodeState extends ConsumerState<_TodoNode> {
         context,
         MaterialPageRoute(builder: (_) => TodoEditPage(parent: e)),
       );
+    } else if (act == 'archive') {
+      await ref.read(todoListProvider.notifier).archiveItem(e.id);
     } else if (act == 'delete') {
       await ref.read(todoListProvider.notifier).deleteItem(e.id);
     }

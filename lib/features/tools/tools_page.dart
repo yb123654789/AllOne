@@ -238,6 +238,31 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
               ],
             ),
           ),
+          _sectionLabel('底部导航显示设置'),
+          Card(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(
+                    '选择哪些功能显示在底部导航栏中（关闭后仍可从侧边栏 ☰ 或本页进入）',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ),
+                for (final f in kAppFeatures)
+                  SwitchListTile(
+                    dense: true,
+                    secondary: Icon(f.icon),
+                    title: Text(f.label),
+                    value: _isBottomBarVisible(f.key),
+                    onChanged: (v) => _setBottomBarVisible(f.key, v),
+                  ),
+              ],
+            ),
+          ),
           _sectionLabel('侧边栏显示设置'),
           Card(
             child: Column(
@@ -245,7 +270,7 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                   child: Text(
-                    '选择哪些功能显示在侧边栏 ☰ 中，减少拥挤（关闭后仍可从本页进入）',
+                    '选择哪些功能显示在侧边栏 ☰ 中，减少拥挤（关闭后仍可从底部导航或本页进入）',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppTheme.textSecondary,
@@ -395,8 +420,8 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
 
   /// 功能导航入口：点击切换底部导航 tab
   Widget _featureTile(AppFeature f) {
-    final current = ref.watch(homeTabIndexProvider);
-    final active = current == kAppFeatures.indexOf(f);
+    final current = ref.watch(homeTabProvider);
+    final active = current == f.key;
     return ListTile(
       leading: Icon(active ? f.selectedIcon : f.icon, color: active ? AppTheme.primary : null),
       title: Text(
@@ -409,13 +434,37 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
       trailing: active
           ? const Icon(Icons.check, color: AppTheme.primary, size: 18)
           : null,
-      onTap: () =>
-          ref.read(homeTabIndexProvider.notifier).state = kAppFeatures.indexOf(f),
+      onTap: () => ref.read(homeTabProvider.notifier).state = f.key,
     );
   }
 
+  bool _isBottomBarVisible(String key) {
+    final nav =
+        ref.watch(navSettingsProvider).valueOrNull ?? const NavSettings();
+    return nav.isBottomBarVisible(key);
+  }
+
+  void _setBottomBarVisible(String key, bool v) {
+    // 底部导航至少保留一个功能，避免空导航
+    if (!v) {
+      final nav =
+          ref.read(navSettingsProvider).valueOrNull ?? const NavSettings();
+      final visible = kAppFeatures
+          .where((f) => nav.isBottomBarVisible(f.key))
+          .toList();
+      if (visible.length <= 1 && visible.any((f) => f.key == key)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('底部导航至少需要保留一个功能')),
+        );
+        return;
+      }
+    }
+    ref.read(navSettingsProvider.notifier).setBottomBarVisible(key, v);
+  }
+
   bool _isSidebarVisible(String key) {
-    final nav = ref.watch(navSettingsProvider).valueOrNull ?? const NavSettings();
+    final nav =
+        ref.watch(navSettingsProvider).valueOrNull ?? const NavSettings();
     return nav.isSidebarVisible(key);
   }
 
