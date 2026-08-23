@@ -36,9 +36,10 @@ AllOneData/
 │       └── <courseId>.json
 ├── ledger/
 │   ├── ledger.json          # 总账本配置
+│   ├── settings.json        # 记账设置（本月计划支出预算）
 │   ├── accounts/            # 账户
 │   │   └── <accountId>.json
-│   └── transactions/        # 流水
+│   └── transactions/        # 流水（扁平文件：<accountId>_<yyyy-MM>.json）
 │       └── <accountId>_<yyyy-MM>.json
 └── calendar/
     ├── special_days.json    # 日历界面创建的特殊日子/节假日
@@ -65,6 +66,7 @@ AllOneData/
   "type": "diary",
   "templateId": "tp-default",
   "title": "标题",
+  "mode": "plain | rich",
   "contentMd": "Markdown 正文",
   "plainText": "纯文本正文（与 contentMd 同步，便于 txt 读取）",
   "createdAt": "2026-08-20T10:30:00+08:00",
@@ -83,6 +85,9 @@ AllOneData/
   ]
 }
 ```
+
+> `mode = plain`（纯文本，`contentDelta` 为空）或 `rich`（富文本，`contentDelta` 存 Delta JSON）。
+> 纯文本模式为手机 / 电脑键盘双适配编辑方式；无论哪种模式都会同步生成 `plainText` 保证通用可读。
 
 **大视频处理规则**：
 - 附件 ≥ 阈值（默认 50MB，可配置）→ 不复制进 `media/`，改为 `external` 外链引用（保存原路径 / 外部存储位置），正文中以链接形式展示。
@@ -126,7 +131,27 @@ AllOneData/
 - 任务链是「抽箱式」设计：从任务链中抽取/推进子任务，进度累积。
 - 一个长期任务 = 一个任务链，包含多个从属于它的子任务。
 
-### 3.4 习惯 `habits/<habitId>.json`
+### 3.4 待办模板 `templates/<templateId>.json`
+
+模板可整体保存「标题预设 + 内容（纯文本 / 富文本）+ 截止时间 + 地点 + 标签」，
+新建待办时一键套用：
+
+```json
+{
+  "id": "tp-001",
+  "name": "周报",
+  "title": "周报",
+  "mode": "plain | rich",
+  "contentPlain": "模板纯文本内容",
+  "contentRich": "模板富文本 Delta JSON",
+  "deadline": { "date": "2026-08-28", "time": "18:00", "color": "#E5484D", "highlight": true },
+  "location": { "text": "办公室", "color": "#1E88E5", "highlight": false, "lat": 0, "lng": 0 },
+  "tags": ["工作"],
+  "createdAt": "...", "updatedAt": "..."
+}
+```
+
+### 3.5 习惯 `habits/<habitId>.json`
 
 ```json
 {
@@ -135,11 +160,15 @@ AllOneData/
   "category": "学习",
   "type": "duration | count",
   "target": { "unit": "天 | 次", "value": 30 },
-  "content": "描述（纯文本/富文本，同待办）",
+  "description": "描述（纯文本）",
+  "descriptionRich": "描述（富文本 Delta JSON，可空）",
   "media": [],
+  "tags": [],
   "createdAt": "..."
 }
 ```
+
+> 习惯描述支持**纯文本 / 富文本两种模式**（与待办一致），可附附件与标签。
 
 打卡记录 `checkins/<habitId>_<yyyy-MM>.json`：
 ```json
@@ -202,21 +231,36 @@ AllOneData/
 }
 ```
 
-### 3.7 日历特殊日子 `calendar/special_days.json`
+> 流水文件为**扁平结构** `<accountId>_<yyyy-MM>.json`（注意：不是子目录）。
+
+记账设置 `settings.json`：
+```json
+{ "monthlyBudget": 2000 }
+```
+
+### 3.8 日历特殊日子 `calendar/special_days.json`
 
 ```json
 {
   "specialDays": [
-    { "id": "sd-1", "date": "2026-10-01", "name": "国庆节", "type": "holiday | custom", "color": "#F44336" }
+    { "id": "sd-1", "date": "2026-10-01", "name": "纪念日", "type": "custom", "color": "#F44336" }
   ]
 }
 ```
+
+> - `special_days.json` 只保存**用户自定义**的特殊日子（`type = custom`）。
+> - **内置法定节假日 / 传统节日**（元旦、春节、清明、端午、中秋、国庆等，`type = holiday`）
+>   由代码在运行时动态生成（含农历算法，见 `calendar/lunar_calendar.dart`），**不落盘**，
+>   因此备份中无需包含，也不可被删除。
 
 ## 4. 备份格式
 
 - 手动备份：将整个 `AllOneData/` 目录**原样复制**到 U 盘 / 外部目录，即完成备份。
 - 可选打包：一键导出为 `AllOneData_backup_<date>.zip`。
-- 恢复：从目录或 zip 导入，校验 `manifest.json` 版本后覆盖/合并。
+- **通用文本导出**：设置页可把日记 / 待办 / 习惯 / 课程 / 记账整理为
+  `01_diary.md`、`02_todo.md` 等标准 Markdown / txt 文件打包成 zip，
+  任何设备可用记事本打开（此格式**只读导出**，不用于导入）。
+- 恢复：从 zip 导入，校验后覆盖/合并。
 
 ## 5. 兼容与迁移
 

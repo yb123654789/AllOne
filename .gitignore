@@ -12,6 +12,24 @@
 # 本地临时输出（终端重定向产物）
 *_out.txt
 *_out2.txt
+*_out3.txt
+*_out4.txt
+build_status.*
+runs*.json
+buildhelp.txt
+analyze.txt
+analyze2.txt
+asm.txt
+asm_tools.txt
+build_check.txt
+build_tools.txt
+build_verbose.txt
+clean.txt
+doc_tools.txt
+pubget.txt
+vb2.txt
+vb3.txt
+vbuild.txt
 .svn/
 .swiftpm/
 migrate_working_dir/

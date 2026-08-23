@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:path/path.dart' as p;
 
 import '../../core/models/common.dart';
@@ -11,6 +12,7 @@ import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
 import '../../core/utils/media_utils.dart';
 import '../../core/widgets/location_map_picker.dart';
+import '../../core/widgets/location_map_view.dart';
 import '../../core/widgets/rich_text_editor.dart';
 import 'diary_models.dart';
 import 'diary_repository.dart';
@@ -32,10 +34,14 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
 
   late final String _entryId;
   late final TextEditingController _titleCtrl;
+  late final TextEditingController _plainCtrl;
   late final QuillController _quill;
   late final TextEditingController _tagInput;
   final List<String> _tags = [];
   final List<MediaAttachment> _media = [];
+
+  /// 编辑模式：纯文本（类似 txt，手机 / 电脑键盘友好）或富文本
+  DiaryMode _mode = DiaryMode.rich;
 
   bool _tsEnabled = false;
   DateTime? _tsNodeDate;
@@ -52,29 +58,46 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
     final e = widget.entry;
     _entryId = e?.id ?? AppPaths.newId();
     _titleCtrl = TextEditingController(text: e?.title ?? '');
+    _plainCtrl = TextEditingController(text: e?.plainText ?? '');
     _quill = QuillController(
-      document: QuillCodec.decode(e?.contentDelta ?? widget.template?.contentDelta ?? ''),
+      document: QuillCodec.decode(
+        e?.contentDelta ?? widget.template?.contentDelta ?? '',
+      ),
       selection: const TextSelection.collapsed(offset: 0),
     );
     _tagInput = TextEditingController();
     if (e != null) {
+      // 兼容旧数据：contentDelta 为空则按纯文本编辑
+      _mode =
+          e.mode == DiaryMode.plain ||
+              (e.contentDelta.isEmpty && e.plainText.isNotEmpty)
+          ? DiaryMode.plain
+          : DiaryMode.rich;
       _tags.addAll(e.tags);
       _media.addAll(e.media);
       _tsEnabled = e.timeStamp.enabled;
-      _tsNodeDate = e.timeStamp.nodeDate != null ? DateTime.tryParse(e.timeStamp.nodeDate!) : null;
+      _tsNodeDate = e.timeStamp.nodeDate != null
+          ? DateTime.tryParse(e.timeStamp.nodeDate!)
+          : null;
       _tsPinTop = e.timeStamp.pinTop;
       _locEnabled = e.locationStamp.enabled;
       _locName = e.locationStamp.name;
       _locLat = e.locationStamp.lat;
       _locLng = e.locationStamp.lng;
     } else if (widget.template != null) {
-      // 模板新建：继承模板正文
+      // 模板新建：继承模板正文（模板无富文本则按纯文本编辑）
+      final t = widget.template!;
+      if (t.contentDelta.isEmpty) {
+        _mode = DiaryMode.plain;
+        _plainCtrl.text = t.plainText;
+      }
     }
   }
 
   @override
   void dispose() {
     _titleCtrl.dispose();
+    _plainCtrl.dispose();
     _quill.dispose();
     _tagInput.dispose();
     super.dispose();
@@ -82,13 +105,18 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
 
   Future<void> _save() async {
     final title = _titleCtrl.text.trim();
-    final delta = QuillCodec.encode(_quill.document);
-    final plain = _quill.document.toPlainText();
+    final plain = _mode == DiaryMode.plain
+        ? _plainCtrl.text
+        : _quill.document.toPlainText();
+    final delta = _mode == DiaryMode.rich
+        ? QuillCodec.encode(_quill.document)
+        : '';
     final now = DateTime.now();
     final entry = DiaryEntry(
       id: _entryId,
       templateId: widget.template?.id ?? widget.entry?.templateId,
       title: title.isEmpty ? plain.split('\n').first : title,
+      mode: _mode,
       contentDelta: delta,
       plainText: plain,
       createdAt: widget.entry?.createdAt ?? now,
@@ -134,12 +162,14 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
     // 大视频 / 大文件：转外链引用
     if (size > largeFileThreshold) {
       setState(() {
-        _media.add(MediaAttachment(
-          type: type,
-          external: picked!.path,
-          size: size,
-          note: '大文件外链',
-        ));
+        _media.add(
+          MediaAttachment(
+            type: type,
+            external: picked!.path,
+            size: size,
+            note: '大文件外链',
+          ),
+        );
       });
       return;
     }
@@ -162,8 +192,10 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('视频较大，不复制进数据目录，而是记录外部路径引用：',
-                style: TextStyle(fontSize: 13)),
+            const Text(
+              '视频较大，不复制进数据目录，而是记录外部路径引用：',
+              style: TextStyle(fontSize: 13),
+            ),
             const SizedBox(height: 10),
             TextField(
               controller: pathCtrl,
@@ -174,24 +206,34 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
               ),
             ),
             const SizedBox(height: 6),
-            const Text('也可直接粘贴一个链接地址。外链文件需自行保管（如存于 U 盘）。',
-                style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+            const Text(
+              '也可直接粘贴一个链接地址。外链文件需自行保管（如存于 U 盘）。',
+              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('保存外链')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('保存外链'),
+          ),
         ],
       ),
     );
     if (ok == true && pathCtrl.text.trim().isNotEmpty && mounted) {
       setState(() {
-        _media.add(MediaAttachment(
-          type: MediaType.videoLink,
-          external: pathCtrl.text.trim(),
-          size: 0,
-          note: '大视频外链',
-        ));
+        _media.add(
+          MediaAttachment(
+            type: MediaType.videoLink,
+            external: pathCtrl.text.trim(),
+            size: 0,
+            note: '大视频外链',
+          ),
+        );
       });
     }
   }
@@ -210,7 +252,11 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
       appBar: AppBar(
         title: Text(widget.entry == null ? '写日记' : '编辑日记'),
         actions: [
-          IconButton(onPressed: _save, tooltip: '保存', icon: const Icon(Icons.save_outlined)),
+          IconButton(
+            onPressed: _save,
+            tooltip: '保存',
+            icon: const Icon(Icons.save_outlined),
+          ),
         ],
       ),
       body: Column(
@@ -222,13 +268,47 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
               decoration: const InputDecoration(hintText: '标题（留空则取正文首行）'),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: SegmentedButton<DiaryMode>(
+                segments: const [
+                  ButtonSegment(
+                    value: DiaryMode.plain,
+                    label: Text('纯文本（txt）'),
+                  ),
+                  ButtonSegment(value: DiaryMode.rich, label: Text('富文本')),
+                ],
+                selected: {_mode},
+                onSelectionChanged: (s) => setState(() => _mode = s.first),
+                showSelectedIcon: false,
+              ),
+            ),
+          ),
           _buildStampsBar(context),
           Expanded(
-            child: RichTextEditor(
-              controller: _quill,
-              placeholder: '开始记录今天的故事…',
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            ),
+            child: _mode == DiaryMode.plain
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: TextField(
+                      controller: _plainCtrl,
+                      maxLines: null,
+                      expands: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      style: const TextStyle(fontSize: 16, height: 1.6),
+                      decoration: const InputDecoration(
+                        hintText: '纯文本模式（类似 txt），手机 / 电脑键盘皆友好…',
+                        filled: false,
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  )
+                : RichTextEditor(
+                    controller: _quill,
+                    placeholder: '开始记录今天的故事…',
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  ),
           ),
           _buildAttachmentBar(),
         ],
@@ -282,11 +362,18 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       child: ActionChip(
-        avatar: Icon(icon, size: 18, color: active ? Colors.white : AppTheme.primary),
+        avatar: Icon(
+          icon,
+          size: 18,
+          color: active ? Colors.white : AppTheme.primary,
+        ),
         label: Text(label),
         backgroundColor: active ? AppTheme.primary : Colors.transparent,
         side: BorderSide(color: active ? AppTheme.primary : AppTheme.divider),
-        labelStyle: TextStyle(color: active ? Colors.white : AppTheme.textPrimary, fontSize: 13),
+        labelStyle: TextStyle(
+          color: active ? Colors.white : AppTheme.textPrimary,
+          fontSize: 13,
+        ),
         onPressed: onTap,
       ),
     );
@@ -301,12 +388,28 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _attachBtn(Icons.photo_outlined, '照片', () => _addMedia(MediaType.photo)),
+            _attachBtn(
+              Icons.photo_outlined,
+              '照片',
+              () => _addMedia(MediaType.photo),
+            ),
             _attachBtn(Icons.mic_none, '录音', _startRecord),
-            _attachBtn(Icons.videocam_outlined, '视频', () => _addMedia(MediaType.video)),
-            _attachBtn(Icons.attach_file, '文件', () => _addMedia(MediaType.file)),
+            _attachBtn(
+              Icons.videocam_outlined,
+              '视频',
+              () => _addMedia(MediaType.video),
+            ),
+            _attachBtn(
+              Icons.attach_file,
+              '文件',
+              () => _addMedia(MediaType.file),
+            ),
             if (_media.isNotEmpty)
-              _attachBtn(Icons.image_outlined, '附件(${_media.length})', _showMediaList),
+              _attachBtn(
+                Icons.image_outlined,
+                '附件(${_media.length})',
+                _showMediaList,
+              ),
           ],
         ),
       ),
@@ -324,7 +427,13 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
           children: [
             Icon(icon, color: AppTheme.primary, size: 22),
             const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppTheme.textSecondary,
+              ),
+            ),
           ],
         ),
       ),
@@ -343,7 +452,11 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
         final dir = Directory(p.join(store.root.path, diaryMediaDir(_entryId)));
         final name = await MediaUtils.copyToDir(f, dir);
         if (name != null && mounted) {
-          setState(() => _media.add(MediaAttachment(type: MediaType.audio, file: name, size: size)));
+          setState(
+            () => _media.add(
+              MediaAttachment(type: MediaType.audio, file: name, size: size),
+            ),
+          );
         }
       }
       if (mounted) setState(() {});
@@ -351,15 +464,18 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
     }
     if (!await MediaUtils.requestMicPermission()) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('需要麦克风权限才能录音')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('需要麦克风权限才能录音')));
       }
       return;
     }
     final store = await ref.read(jsonStoreProvider.future);
     final dir = Directory(p.join(store.root.path, diaryMediaDir(_entryId)));
     if (!await dir.exists()) await dir.create(recursive: true);
-    final path = p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}_rec.m4a');
+    final path = p.join(
+      dir.path,
+      '${DateTime.now().millisecondsSinceEpoch}_rec.m4a',
+    );
     await MediaUtils.startRecording(path);
     _recording = true;
     if (mounted) setState(() {});
@@ -378,12 +494,14 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
             Wrap(
               spacing: 6,
               children: _tags
-                  .map((t) => InputChip(
-                        label: Text(t),
-                        onDeleted: () {
-                          setState(() => _tags.remove(t));
-                        },
-                      ))
+                  .map(
+                    (t) => InputChip(
+                      label: Text(t),
+                      onDeleted: () {
+                        setState(() => _tags.remove(t));
+                      },
+                    ),
+                  )
                   .toList(),
             ),
             const SizedBox(height: 8),
@@ -401,7 +519,12 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
             ),
           ],
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('完成'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('完成'),
+          ),
+        ],
       ),
     );
   }
@@ -422,9 +545,11 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
               ),
               ListTile(
                 title: const Text('纪念节点日期'),
-                subtitle: Text(_tsNodeDate == null
-                    ? '未设置（建议：半年 / 一年）'
-                    : AppTime.dateOnly(_tsNodeDate!)),
+                subtitle: Text(
+                  _tsNodeDate == null
+                      ? '未设置（建议：半年 / 一年）'
+                      : AppTime.dateOnly(_tsNodeDate!),
+                ),
                 onTap: _tsEnabled
                     ? () async {
                         final d = await showDatePicker(
@@ -437,15 +562,52 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
                       }
                     : null,
               ),
+              Padding(
+                padding: const EdgeInsets.only(left: 16, top: 2, bottom: 4),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final quick in const [
+                      (1, '一个月后'),
+                      (6, '半年后'),
+                      (12, '一年后'),
+                    ])
+                      ActionChip(
+                        label: Text(
+                          quick.$2,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onPressed: _tsEnabled
+                            ? () {
+                                final now = DateTime.now();
+                                setState(
+                                  () => _tsNodeDate = DateTime(
+                                    now.year,
+                                    now.month + quick.$1,
+                                    now.day,
+                                  ),
+                                );
+                              }
+                            : null,
+                      ),
+                  ],
+                ),
+              ),
               SwitchListTile(
                 title: const Text('节点到达后置顶'),
                 value: _tsPinTop,
-                onChanged: _tsEnabled ? (v) => setState(() => _tsPinTop = v) : null,
+                onChanged: _tsEnabled
+                    ? (v) => setState(() => _tsPinTop = v)
+                    : null,
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('完成')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('完成'),
+            ),
           ],
         ),
       ),
@@ -472,6 +634,22 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
                 onChanged: (v) => _locName = v,
                 initialValue: _locName,
               ),
+              const SizedBox(height: 8),
+              // 内嵌可视化地图：直接点击地图选点，所见即所得
+              if (_locEnabled)
+                LocationMapView(
+                  center: LatLng(
+                    _locLat == 0 ? 39.9042 : _locLat,
+                    _locLng == 0 ? 116.4074 : _locLng,
+                  ),
+                  interactive: true,
+                  height: 180,
+                  onChanged: (p) => setState(() {
+                    _locLat = p.latitude;
+                    _locLng = p.longitude;
+                    if (_locName.isEmpty) _locName = '地图标记点';
+                  }),
+                ),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -520,30 +698,33 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text('离线瓦片存放于 AllOneData/map_tiles 目录时，可完全离线使用',
-                  style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+              const Text(
+                '离线瓦片存放于 AllOneData/map_tiles 目录时，可完全离线使用',
+                style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+              ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('完成')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('完成'),
+            ),
           ],
         ),
       ),
     );
   }
 
-  void _showTemplateDialog() {
-    showDialog(
+  Future<void> _showTemplateDialog() async {
+    final t = await showDialog<DiaryTemplate>(
       context: context,
       builder: (ctx) => SimpleDialog(
         title: const Text('选择日记模板'),
         children: [
-          for (final t in (ref.read(diaryTemplateListProvider).valueOrNull ?? []))
+          for (final t
+              in (ref.read(diaryTemplateListProvider).valueOrNull ?? []))
             SimpleDialogOption(
-              onPressed: () {
-                setState(() {});
-                Navigator.pop(ctx);
-              },
+              onPressed: () => Navigator.pop(ctx, t),
               child: Text(t.name.isEmpty ? '未命名模板' : t.name),
             ),
           if ((ref.read(diaryTemplateListProvider).valueOrNull ?? []).isEmpty)
@@ -554,6 +735,23 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
         ],
       ),
     );
+    if (t == null || !mounted) return;
+    setState(() {
+      if (t.contentDelta.isNotEmpty) {
+        // 富文本模板：套用并切到富文本模式
+        _quill.document = QuillCodec.decode(t.contentDelta);
+        _mode = DiaryMode.rich;
+      } else {
+        // 纯文本模板：套用并切到纯文本模式
+        _plainCtrl.text = t.plainText;
+        _mode = DiaryMode.plain;
+      }
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已套用模板「${t.name.isEmpty ? '未命名模板' : t.name}」')),
+      );
+    }
   }
 
   void _showMediaList() {
@@ -568,7 +766,9 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
             ListTile(
               leading: Icon(_mediaIcon(m.type)),
               title: Text(m.file ?? m.external ?? '外链'),
-              subtitle: Text(m.note ?? '${(m.size / 1024).toStringAsFixed(1)} KB'),
+              subtitle: Text(
+                m.note ?? '${(m.size / 1024).toStringAsFixed(1)} KB',
+              ),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () => setState(() => _media.remove(m)),

@@ -17,7 +17,8 @@ class OfflineFirstTileProvider extends TileProvider {
   ImageProvider getImage(TileCoordinates coordinates, TileLayer options) {
     if (offlineRoot != null && offlineRoot!.isNotEmpty) {
       final file = File(
-          '$offlineRoot/${coordinates.z}/${coordinates.x}/${coordinates.y}.png');
+        '$offlineRoot/${coordinates.z}/${coordinates.x}/${coordinates.y}.png',
+      );
       if (file.existsSync()) {
         return FileImage(file);
       }

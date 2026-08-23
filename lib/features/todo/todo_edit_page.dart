@@ -14,6 +14,7 @@ import '../../core/widgets/location_map_picker.dart';
 import '../../core/widgets/rich_text_editor.dart';
 import 'todo_models.dart';
 import 'todo_repository.dart';
+import 'todo_templates_page.dart';
 
 /// 待办编辑页。
 class TodoEditPage extends ConsumerStatefulWidget {
@@ -32,12 +33,14 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
   late final TextEditingController _titleCtrl;
   late final TextEditingController _plainCtrl;
   late final QuillController _richCtrl;
+  late final TextEditingController _tagInput;
   TodoMode _mode = TodoMode.plain;
 
   DeadlineInfo _deadline = const DeadlineInfo();
   LocationInfo _location = const LocationInfo();
   String? _chainId;
   final List<MediaAttachment> _media = [];
+  final List<String> _tags = [];
 
   @override
   void initState() {
@@ -50,12 +53,14 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
       document: QuillCodec.decode(it?.contentRich ?? ''),
       selection: const TextSelection.collapsed(offset: 0),
     );
+    _tagInput = TextEditingController();
     if (it != null) {
       _mode = it.mode;
       _deadline = it.deadline;
       _location = it.location;
       _chainId = it.taskChainId;
       _media.addAll(it.media);
+      _tags.addAll(it.tags);
     }
   }
 
@@ -64,6 +69,7 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
     _titleCtrl.dispose();
     _plainCtrl.dispose();
     _richCtrl.dispose();
+    _tagInput.dispose();
     super.dispose();
   }
 
@@ -73,13 +79,18 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
       id: _itemId,
       title: _titleCtrl.text.trim(),
       mode: _mode,
-      contentPlain: _mode == TodoMode.plain ? _plainCtrl.text : _richCtrl.document.toPlainText(),
-      contentRich: _mode == TodoMode.rich ? QuillCodec.encode(_richCtrl.document) : '',
+      contentPlain: _mode == TodoMode.plain
+          ? _plainCtrl.text
+          : _richCtrl.document.toPlainText(),
+      contentRich: _mode == TodoMode.rich
+          ? QuillCodec.encode(_richCtrl.document)
+          : '',
       deadline: _deadline,
       location: _location,
       status: widget.item?.status ?? TodoStatus.pending,
       taskChainId: _chainId,
       media: List.of(_media),
+      tags: List.of(_tags),
       createdAt: widget.item?.createdAt ?? now,
       updatedAt: now,
     );
@@ -102,13 +113,26 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
     if (picked == null) return;
     final size = await picked.length();
     if (size > largeFileThreshold) {
-      setState(() => _media.add(MediaAttachment(type: type, external: picked!.path, size: size, note: '大文件外链')));
+      setState(
+        () => _media.add(
+          MediaAttachment(
+            type: type,
+            external: picked!.path,
+            size: size,
+            note: '大文件外链',
+          ),
+        ),
+      );
       return;
     }
     final store = await ref.read(jsonStoreProvider.future);
     final dir = Directory(p.join(store.root.path, todoMediaDir(_itemId)));
     final name = await MediaUtils.copyToDir(picked, dir);
-    if (name != null) setState(() => _media.add(MediaAttachment(type: type, file: name, size: size)));
+    if (name != null) {
+      setState(
+        () => _media.add(MediaAttachment(type: type, file: name, size: size)),
+      );
+    }
   }
 
   bool _recording = false;
@@ -123,8 +147,11 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
         final name = await MediaUtils.copyToDir(f, dir);
         final len = await f.length();
         if (name != null) {
-          setState(() => _media.add(
-              MediaAttachment(type: MediaType.audio, file: name, size: len)));
+          setState(
+            () => _media.add(
+              MediaAttachment(type: MediaType.audio, file: name, size: len),
+            ),
+          );
         }
       }
       if (mounted) setState(() {});
@@ -132,14 +159,17 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
     }
     if (!await MediaUtils.requestMicPermission()) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('需要麦克风权限')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('需要麦克风权限')));
       }
       return;
     }
     final store = await ref.read(jsonStoreProvider.future);
     final dir = Directory(p.join(store.root.path, todoMediaDir(_itemId)));
     if (!await dir.exists()) await dir.create(recursive: true);
-    await MediaUtils.startRecording(p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}_rec.m4a'));
+    await MediaUtils.startRecording(
+      p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}_rec.m4a'),
+    );
     _recording = true;
     if (mounted) setState(() {});
   }
@@ -150,7 +180,11 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
       appBar: AppBar(
         title: Text(widget.item == null ? '新建待办' : '编辑待办'),
         actions: [
-          IconButton(onPressed: _save, tooltip: '保存', icon: const Icon(Icons.save_outlined)),
+          IconButton(
+            onPressed: _save,
+            tooltip: '保存',
+            icon: const Icon(Icons.save_outlined),
+          ),
         ],
       ),
       body: Column(
@@ -211,14 +245,33 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
             label: _chainId == null ? '任务链' : '任务链✓',
             onTap: _pickChain,
           ),
+          _chip(
+            icon: Icons.description_outlined,
+            label: '模板',
+            onTap: _pickTemplate,
+          ),
+          _chip(
+            icon: Icons.label_outline,
+            label: '标签${_tags.isEmpty ? '' : '(${_tags.length})'}',
+            onTap: _showTagDialog,
+          ),
           if (_media.isNotEmpty)
-            _chip(icon: Icons.attachment_outlined, label: '附件(${_media.length})', onTap: _showMedia),
+            _chip(
+              icon: Icons.attachment_outlined,
+              label: '附件(${_media.length})',
+              onTap: _showMedia,
+            ),
         ],
       ),
     );
   }
 
-  Widget _chip({required IconData icon, required String label, VoidCallback? onTap, Color? color}) {
+  Widget _chip({
+    required IconData icon,
+    required String label,
+    VoidCallback? onTap,
+    Color? color,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       child: ActionChip(
@@ -247,10 +300,7 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
         ),
       );
     }
-    return RichTextEditor(
-      controller: _richCtrl,
-      placeholder: '富文本内容，可插入勾选列表…',
-    );
+    return RichTextEditor(controller: _richCtrl, placeholder: '富文本内容，可插入勾选列表…');
   }
 
   Widget _buildAttachmentBar() {
@@ -262,8 +312,16 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             _ab(Icons.photo_outlined, '照片', () => _addMedia(MediaType.photo)),
-            _ab(_recording ? Icons.stop_circle_outlined : Icons.mic_none, _recording ? '停止' : '录音', _toggleRecord),
-            _ab(Icons.videocam_outlined, '视频', () => _addMedia(MediaType.video)),
+            _ab(
+              _recording ? Icons.stop_circle_outlined : Icons.mic_none,
+              _recording ? '停止' : '录音',
+              _toggleRecord,
+            ),
+            _ab(
+              Icons.videocam_outlined,
+              '视频',
+              () => _addMedia(MediaType.video),
+            ),
             _ab(Icons.attach_file, '文件', () => _addMedia(MediaType.file)),
           ],
         ),
@@ -282,7 +340,13 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
           children: [
             Icon(icon, color: AppTheme.primary, size: 22),
             const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppTheme.textSecondary,
+              ),
+            ),
           ],
         ),
       ),
@@ -314,12 +378,14 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
                       lastDate: DateTime(2100),
                     );
                     if (picked != null) {
-                      setState(() => d = DeadlineInfo(
-                            date: AppTime.dateOnly(picked),
-                            time: d.time,
-                            color: d.color,
-                            highlight: d.highlight,
-                          ));
+                      setState(
+                        () => d = DeadlineInfo(
+                          date: AppTime.dateOnly(picked),
+                          time: d.time,
+                          color: d.color,
+                          highlight: d.highlight,
+                        ),
+                      );
                     }
                   },
                 ),
@@ -334,12 +400,15 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
                           : _parseTime(d.time),
                     );
                     if (picked != null) {
-                      setState(() => d = DeadlineInfo(
-                            date: d.date,
-                            time: '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}',
-                            color: d.color,
-                            highlight: d.highlight,
-                          ));
+                      setState(
+                        () => d = DeadlineInfo(
+                          date: d.date,
+                          time:
+                              '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}',
+                          color: d.color,
+                          highlight: d.highlight,
+                        ),
+                      );
                     }
                   },
                 ),
@@ -350,23 +419,39 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
                   onTap: () async {
                     final c = await _pickColor(ctx, d.color);
                     if (c != null) {
-                      setState(() => d = DeadlineInfo(
-                            date: d.date, time: d.time, color: c, highlight: d.highlight));
+                      setState(
+                        () => d = DeadlineInfo(
+                          date: d.date,
+                          time: d.time,
+                          color: c,
+                          highlight: d.highlight,
+                        ),
+                      );
                     }
                   },
                 ),
                 SwitchListTile(
                   title: const Text('醒目高亮'),
                   value: d.highlight,
-                  onChanged: (v) => setState(() => d = DeadlineInfo(
-                        date: d.date, time: d.time, color: d.color, highlight: v)),
+                  onChanged: (v) => setState(
+                    () => d = DeadlineInfo(
+                      date: d.date,
+                      time: d.time,
+                      color: d.color,
+                      highlight: v,
+                    ),
+                  ),
                 ),
               ],
             ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('清除', style: TextStyle(color: AppTheme.danger))),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  '清除',
+                  style: TextStyle(color: AppTheme.danger),
+                ),
+              ),
               TextButton(
                 onPressed: () {
                   _deadline = d;
@@ -408,13 +493,17 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
                       context,
                       lat: lat == 0 ? null : lat,
                       lng: lng == 0 ? null : lng,
-                      name: textCtrl.text.trim().isEmpty ? null : textCtrl.text.trim(),
+                      name: textCtrl.text.trim().isEmpty
+                          ? null
+                          : textCtrl.text.trim(),
                     );
                     if (point != null) {
                       setState(() {
                         lat = point.latitude;
                         lng = point.longitude;
-                        if (textCtrl.text.trim().isEmpty) textCtrl.text = '地图标记点';
+                        if (textCtrl.text.trim().isEmpty) {
+                          textCtrl.text = '地图标记点';
+                        }
                       });
                     }
                   },
@@ -441,7 +530,11 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
           actions: [
             TextButton(
               onPressed: () {
-                _location = LocationInfo(text: '', color: color, highlight: highlight);
+                _location = LocationInfo(
+                  text: '',
+                  color: color,
+                  highlight: highlight,
+                );
                 Navigator.pop(ctx);
                 setState(() {});
               },
@@ -450,7 +543,12 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
             TextButton(
               onPressed: () {
                 _location = LocationInfo(
-                    text: textCtrl.text.trim(), color: color, highlight: highlight, lat: lat, lng: lng);
+                  text: textCtrl.text.trim(),
+                  color: color,
+                  highlight: highlight,
+                  lat: lat,
+                  lng: lng,
+                );
                 Navigator.pop(ctx);
                 setState(() {});
               },
@@ -470,7 +568,12 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const ListTile(title: Text('选择任务链', style: TextStyle(fontWeight: FontWeight.w600))),
+            const ListTile(
+              title: Text(
+                '选择任务链',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
             if (chains.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(16),
@@ -481,7 +584,9 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
                 leading: const Icon(Icons.account_tree_outlined),
                 title: Text(c.title.isEmpty ? '未命名任务链' : c.title),
                 subtitle: Text('进度 ${(c.progress * 100).toStringAsFixed(0)}%'),
-                trailing: c.id == _chainId ? const Icon(Icons.check, color: AppTheme.primary) : null,
+                trailing: c.id == _chainId
+                    ? const Icon(Icons.check, color: AppTheme.primary)
+                    : null,
                 onTap: () {
                   setState(() => _chainId = c.id);
                   Navigator.pop(ctx);
@@ -524,6 +629,97 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
     );
   }
 
+  /// 选择待办模板并套用其内容（仅填充字段，不覆盖已填写内容）。
+  Future<void> _pickTemplate() async {
+    final t = await Navigator.push<TodoTemplate>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const TodoTemplatesPage(selectable: true),
+      ),
+    );
+    if (t == null || !mounted) return;
+    setState(() {
+      if (_titleCtrl.text.trim().isEmpty) _titleCtrl.text = t.title;
+      _mode = t.mode;
+      if (t.mode == TodoMode.plain) {
+        if (_plainCtrl.text.trim().isEmpty) _plainCtrl.text = t.contentPlain;
+      } else {
+        if (_richCtrl.document.toPlainText().trim().isEmpty) {
+          _richCtrl.document = QuillCodec.decode(t.contentRich);
+        }
+      }
+      if (_deadline.date.isEmpty) _deadline = t.deadline;
+      if (_location.text.isEmpty) _location = t.location;
+      for (final tag in t.tags) {
+        if (!_tags.contains(tag)) _tags.add(tag);
+      }
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已套用模板「${t.name.isEmpty ? '未命名模板' : t.name}」')),
+      );
+    }
+  }
+
+  void _showTagDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('标签'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Wrap(
+              spacing: 6,
+              children: _tags
+                  .map(
+                    (t) => InputChip(
+                      label: Text(t),
+                      onDeleted: () => setState(() => _tags.remove(t)),
+                    ),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _tagInput,
+                    decoration: const InputDecoration(hintText: '输入标签后回车'),
+                    onSubmitted: (_) {
+                      final s = _tagInput.text.trim();
+                      if (s.isNotEmpty && !_tags.contains(s)) {
+                        setState(() => _tags.add(s));
+                        _tagInput.clear();
+                      }
+                    },
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    final s = _tagInput.text.trim();
+                    if (s.isNotEmpty && !_tags.contains(s)) {
+                      setState(() => _tags.add(s));
+                      _tagInput.clear();
+                    }
+                  },
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('完成'),
+          ),
+        ],
+      ),
+    );
+  }
+
   IconData _mediaIcon(MediaType t) {
     switch (t) {
       case MediaType.photo:
@@ -540,7 +736,15 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
   }
 
   Future<String?> _pickColor(BuildContext ctx, String current) async {
-    const colors = ['#E5484D', '#F76B15', '#F5A623', '#30A46C', '#1E88E5', '#7C3AED', '#5C5C5C'];
+    const colors = [
+      '#E5484D',
+      '#F76B15',
+      '#F5A623',
+      '#30A46C',
+      '#1E88E5',
+      '#7C3AED',
+      '#5C5C5C',
+    ];
     return showDialog<String>(
       context: ctx,
       builder: (c) => SimpleDialog(

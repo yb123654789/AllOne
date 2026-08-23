@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:path/path.dart' as p;
 
 import '../../core/models/common.dart';
@@ -10,7 +11,9 @@ import '../../core/storage/json_store.dart';
 import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
 import '../../core/utils/media_utils.dart';
+import '../../core/widgets/location_map_view.dart';
 import '../../core/widgets/rich_text_editor.dart';
+import '../../core/widgets/video_viewer.dart';
 import 'diary_edit_page.dart';
 import 'diary_models.dart';
 import 'diary_repository.dart';
@@ -25,8 +28,11 @@ class DiaryDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(entry.title.isEmpty ? '日记详情' : entry.title,
-            maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Text(
+          entry.title.isEmpty ? '日记详情' : entry.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined),
@@ -67,12 +73,22 @@ class DiaryDetailPage extends ConsumerWidget {
   Widget _meta(BuildContext context) {
     final stamps = <Widget>[];
     if (entry.timeStamp.enabled) {
-      stamps.add(_stampChip(Icons.schedule, '时间戳${entry.timeStamp.nodeDate == null ? '' : ' ${entry.timeStamp.nodeDate}'}',
-          AppTheme.primary));
+      stamps.add(
+        _stampChip(
+          Icons.schedule,
+          '时间戳${entry.timeStamp.nodeDate == null ? '' : ' ${entry.timeStamp.nodeDate}'}',
+          AppTheme.primary,
+        ),
+      );
     }
     if (entry.locationStamp.enabled) {
-      stamps.add(_stampChip(
-          Icons.location_on, '地址戳 ${entry.locationStamp.name}', Colors.green));
+      stamps.add(
+        _stampChip(
+          Icons.location_on,
+          '地址戳 ${entry.locationStamp.name}',
+          Colors.green,
+        ),
+      );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,16 +108,55 @@ class DiaryDetailPage extends ConsumerWidget {
             spacing: 6,
             runSpacing: 4,
             children: entry.tags
-                .map((t) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10),
+                .map(
+                  (t) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      t,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.primary,
                       ),
-                      child: Text(t,
-                          style: const TextStyle(fontSize: 11, color: AppTheme.primary)),
-                    ))
+                    ),
+                  ),
+                )
                 .toList(),
+          ),
+        ],
+        // 地址戳：在地图上可视化展示位置
+        if (entry.locationStamp.enabled) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.location_on, size: 16, color: Colors.green),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  entry.locationStamp.name.isEmpty
+                      ? '位置：${entry.locationStamp.lat}, ${entry.locationStamp.lng}'
+                      : '位置：${entry.locationStamp.name}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          LocationMapView(
+            center: LatLng(
+              entry.locationStamp.lat == 0 ? 39.9042 : entry.locationStamp.lat,
+              entry.locationStamp.lng == 0 ? 116.4074 : entry.locationStamp.lng,
+            ),
+            height: 180,
           ),
         ],
         const Divider(height: 24),
@@ -130,8 +185,9 @@ class DiaryDetailPage extends ConsumerWidget {
   Widget _content(BuildContext context, JsonStore? store) {
     final doc = QuillCodec.decode(entry.contentDelta);
     final controller = QuillController(
-        document: doc, selection: const TextSelection.collapsed(offset: 0))
-      ..readOnly = true;
+      document: doc,
+      selection: const TextSelection.collapsed(offset: 0),
+    )..readOnly = true;
     return Container(
       height: 420,
       decoration: BoxDecoration(
@@ -153,7 +209,10 @@ class DiaryDetailPage extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('附件', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+        const Text(
+          '附件',
+          style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+        ),
         const SizedBox(height: 8),
         for (final m in entry.media) _mediaTile(context, store, m),
       ],
@@ -161,7 +220,9 @@ class DiaryDetailPage extends ConsumerWidget {
   }
 
   Widget _mediaTile(BuildContext context, JsonStore? store, MediaAttachment m) {
-    final mediaDir = store == null ? '' : '${store.root.path}/diary/entries/${entry.id}/media';
+    final mediaDir = store == null
+        ? ''
+        : '${store.root.path}/diary/entries/${entry.id}/media';
     switch (m.type) {
       case MediaType.photo:
         final file = File(p.join(mediaDir, m.file ?? ''));
@@ -185,15 +246,24 @@ class DiaryDetailPage extends ConsumerWidget {
           subtitle: Text(_fmtSize(m.size)),
           trailing: IconButton(
             icon: const Icon(Icons.play_circle_outline),
-            onPressed: () => MediaUtils.playAudio(p.join(mediaDir, m.file ?? '')),
+            onPressed: () =>
+                MediaUtils.playAudio(p.join(mediaDir, m.file ?? '')),
           ),
         );
       case MediaType.video:
+        final file = File(p.join(mediaDir, m.file ?? ''));
         return ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.videocam, color: AppTheme.primary),
           title: Text(m.file ?? ''),
           subtitle: Text(_fmtSize(m.size)),
+          trailing: file.existsSync()
+              ? IconButton(
+                  icon: const Icon(Icons.play_circle_outline),
+                  tooltip: '播放',
+                  onPressed: () => _playVideo(context, file),
+                )
+              : null,
         );
       case MediaType.videoLink:
         return ListTile(
@@ -218,7 +288,10 @@ class DiaryDetailPage extends ConsumerWidget {
       MaterialPageRoute(
         builder: (_) => Scaffold(
           backgroundColor: Colors.black,
-          appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white),
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+          ),
           body: Center(
             child: InteractiveViewer(
               child: Image.file(file, fit: BoxFit.contain),
@@ -229,6 +302,13 @@ class DiaryDetailPage extends ConsumerWidget {
     );
   }
 
+  void _playVideo(BuildContext context, File file) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => VideoViewer(file: file)),
+    );
+  }
+
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -236,7 +316,10 @@ class DiaryDetailPage extends ConsumerWidget {
         title: const Text('删除日记'),
         content: const Text('确定删除这篇日记吗？该操作不可恢复。'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),

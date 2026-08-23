@@ -25,7 +25,12 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: background,
-      fontFamilyFallback: const ['Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', 'sans-serif'],
+      fontFamilyFallback: const [
+        'Noto Sans SC',
+        'Microsoft YaHei',
+        'PingFang SC',
+        'sans-serif',
+      ],
       appBarTheme: const AppBarTheme(
         backgroundColor: background,
         foregroundColor: textPrimary,
@@ -51,7 +56,11 @@ class AppTheme {
         backgroundColor: background,
         indicatorColor: primary.withValues(alpha: 0.12),
         labelTextStyle: WidgetStatePropertyAll(
-          TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textSecondary),
+          TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: textSecondary,
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -70,7 +79,11 @@ class AppTheme {
           borderSide: const BorderSide(color: primary, width: 1.4),
         ),
       ),
-      dividerTheme: const DividerThemeData(color: divider, thickness: 1, space: 1),
+      dividerTheme: const DividerThemeData(
+        color: divider,
+        thickness: 1,
+        space: 1,
+      ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: textPrimary,
@@ -81,7 +94,9 @@ class AppTheme {
           backgroundColor: primary,
           foregroundColor: onPrimary,
           minimumSize: const Size(64, 44),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       ),
     );

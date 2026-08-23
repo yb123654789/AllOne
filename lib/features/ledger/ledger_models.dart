@@ -15,20 +15,20 @@ class LedgerAccount {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'icon': icon,
-        'color': color,
-        'initialBalance': initialBalance,
-      };
+    'id': id,
+    'name': name,
+    'icon': icon,
+    'color': color,
+    'initialBalance': initialBalance,
+  };
 
   factory LedgerAccount.fromJson(Map<String, dynamic> j) => LedgerAccount(
-        id: j['id'] as String? ?? '',
-        name: j['name'] as String? ?? '',
-        icon: j['icon'] as String? ?? '💵',
-        color: j['color'] as String? ?? '#30A46C',
-        initialBalance: (j['initialBalance'] as num?)?.toDouble() ?? 0,
-      );
+    id: j['id'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    icon: j['icon'] as String? ?? '💵',
+    color: j['color'] as String? ?? '#30A46C',
+    initialBalance: (j['initialBalance'] as num?)?.toDouble() ?? 0,
+  );
 }
 
 /// 收支类型
@@ -55,26 +55,44 @@ class Transaction {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'accountId': accountId,
-        'date': date,
-        'type': type.name,
-        'amount': amount,
-        'category': category,
-        'note': note,
-      };
+    'id': id,
+    'accountId': accountId,
+    'date': date,
+    'type': type.name,
+    'amount': amount,
+    'category': category,
+    'note': note,
+  };
 
   factory Transaction.fromJson(Map<String, dynamic> j) => Transaction(
-        id: j['id'] as String? ?? '',
-        accountId: j['accountId'] as String? ?? '',
-        date: j['date'] as String? ?? '',
-        type: TxType.values.firstWhere(
-            (e) => e.name == j['type'],
-            orElse: () => TxType.expense),
-        amount: (j['amount'] as num?)?.toDouble() ?? 0,
-        category: j['category'] as String? ?? '其他',
-        note: j['note'] as String? ?? '',
-      );
+    id: j['id'] as String? ?? '',
+    accountId: j['accountId'] as String? ?? '',
+    date: j['date'] as String? ?? '',
+    type: TxType.values.firstWhere(
+      (e) => e.name == j['type'],
+      orElse: () => TxType.expense,
+    ),
+    amount: (j['amount'] as num?)?.toDouble() ?? 0,
+    category: j['category'] as String? ?? '其他',
+    note: j['note'] as String? ?? '',
+  );
+}
+
+/// 记账设置（计划支出 / 预算）
+class LedgerSettings {
+  /// 本月计划支出预算（0 = 未设置）
+  final double monthlyBudget;
+
+  const LedgerSettings({this.monthlyBudget = 0});
+
+  Map<String, dynamic> toJson() => {'monthlyBudget': monthlyBudget};
+
+  factory LedgerSettings.fromJson(Map<String, dynamic>? j) => LedgerSettings(
+    monthlyBudget: (j?['monthlyBudget'] as num?)?.toDouble() ?? 0,
+  );
+
+  LedgerSettings copyWith({double? monthlyBudget}) =>
+      LedgerSettings(monthlyBudget: monthlyBudget ?? this.monthlyBudget);
 }
 
 /// 某账户某月的流水文件
@@ -83,20 +101,25 @@ class MonthlyRecords {
   final String month; // yyyy-MM
   final List<Transaction> records;
 
-  const MonthlyRecords({required this.accountId, required this.month, this.records = const []});
+  const MonthlyRecords({
+    required this.accountId,
+    required this.month,
+    this.records = const [],
+  });
 
   Map<String, dynamic> toJson() => {
-        'accountId': accountId,
-        'month': month,
-        'records': records.map((r) => r.toJson()).toList(),
-      };
+    'accountId': accountId,
+    'month': month,
+    'records': records.map((r) => r.toJson()).toList(),
+  };
 
   factory MonthlyRecords.fromJson(Map<String, dynamic> j) => MonthlyRecords(
-        accountId: j['accountId'] as String? ?? '',
-        month: j['month'] as String? ?? '',
-        records: (j['records'] as List?)
-                ?.map((e) => Transaction.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            const [],
-      );
+    accountId: j['accountId'] as String? ?? '',
+    month: j['month'] as String? ?? '',
+    records:
+        (j['records'] as List?)
+            ?.map((e) => Transaction.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const [],
+  );
 }

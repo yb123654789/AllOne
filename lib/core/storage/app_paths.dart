@@ -36,9 +36,12 @@ class AppPaths {
   static String newId() {
     final now = DateTime.now();
     String two(int n) => n.toString().padLeft(2, '0');
-    final ts = '${now.year}${two(now.month)}${two(now.day)}'
+    final ts =
+        '${now.year}${two(now.month)}${two(now.day)}'
         '${two(now.hour)}${two(now.minute)}${two(now.second)}';
-    final rand = (DateTime.now().microsecondsSinceEpoch % 100000).toString().padLeft(5, '0');
+    final rand = (DateTime.now().microsecondsSinceEpoch % 100000)
+        .toString()
+        .padLeft(5, '0');
     return '$ts-$rand';
   }
 }

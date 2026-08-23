@@ -16,8 +16,9 @@ class HabitTarget {
       ? const HabitTarget()
       : HabitTarget(
           type: HabitType.values.firstWhere(
-              (e) => e.name == j['type'],
-              orElse: () => HabitType.count),
+            (e) => e.name == j['type'],
+            orElse: () => HabitType.count,
+          ),
           value: (j['value'] as num?)?.toInt() ?? 30,
         );
 }
@@ -49,33 +50,36 @@ class Habit {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'category': category,
-        'target': target.toJson(),
-        'description': description,
-        'descriptionRich': descriptionRich,
-        'media': media.map((m) => m.toJson()).toList(),
-        'tags': tags,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-      };
+    'id': id,
+    'title': title,
+    'category': category,
+    'target': target.toJson(),
+    'description': description,
+    'descriptionRich': descriptionRich,
+    'media': media.map((m) => m.toJson()).toList(),
+    'tags': tags,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 
   factory Habit.fromJson(Map<String, dynamic> json) => Habit(
-        id: json['id'] as String? ?? '',
-        title: json['title'] as String? ?? '',
-        category: json['category'] as String? ?? '通用',
-        target: HabitTarget.fromJson(json['target'] as Map<String, dynamic>?),
-        description: json['description'] as String? ?? '',
-        descriptionRich: json['descriptionRich'] as String? ?? '',
-        media: (json['media'] as List?)
-                ?.map((e) => MediaAttachment.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            const [],
-        tags: (json['tags'] as List?)?.whereType<String>().toList() ?? const [],
-        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
-        updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
-      );
+    id: json['id'] as String? ?? '',
+    title: json['title'] as String? ?? '',
+    category: json['category'] as String? ?? '通用',
+    target: HabitTarget.fromJson(json['target'] as Map<String, dynamic>?),
+    description: json['description'] as String? ?? '',
+    descriptionRich: json['descriptionRich'] as String? ?? '',
+    media:
+        (json['media'] as List?)
+            ?.map((e) => MediaAttachment.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const [],
+    tags: (json['tags'] as List?)?.whereType<String>().toList() ?? const [],
+    createdAt:
+        DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+    updatedAt:
+        DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+  );
 
   Habit copyWith({
     String? title,
@@ -86,19 +90,18 @@ class Habit {
     List<MediaAttachment>? media,
     List<String>? tags,
     DateTime? updatedAt,
-  }) =>
-      Habit(
-        id: id,
-        title: title ?? this.title,
-        category: category ?? this.category,
-        target: target ?? this.target,
-        description: description ?? this.description,
-        descriptionRich: descriptionRich ?? this.descriptionRich,
-        media: media ?? this.media,
-        tags: tags ?? this.tags,
-        createdAt: createdAt,
-        updatedAt: updatedAt ?? this.updatedAt,
-      );
+  }) => Habit(
+    id: id,
+    title: title ?? this.title,
+    category: category ?? this.category,
+    target: target ?? this.target,
+    description: description ?? this.description,
+    descriptionRich: descriptionRich ?? this.descriptionRich,
+    media: media ?? this.media,
+    tags: tags ?? this.tags,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
 }
 
 /// 打卡记录：某习惯在某天的完成状态
@@ -135,5 +138,6 @@ class CheckinMap {
   Map<String, dynamic> toJson() => entries;
 
   factory CheckinMap.fromJson(Map<String, dynamic>? j) => CheckinMap(
-      entries: (j ?? {}).map((k, v) => MapEntry(k, (v as num).toInt())));
+    entries: (j ?? {}).map((k, v) => MapEntry(k, (v as num).toInt())),
+  );
 }

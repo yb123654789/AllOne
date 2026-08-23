@@ -17,7 +17,8 @@ class BackupService {
     final root = await AppPaths.dataRoot();
     final ts = DateTime.now();
     String two(int n) => n.toString().padLeft(2, '0');
-    final stamp = '${ts.year}${two(ts.month)}${two(ts.day)}_${two(ts.hour)}${two(ts.minute)}';
+    final stamp =
+        '${ts.year}${two(ts.month)}${two(ts.day)}_${two(ts.hour)}${two(ts.minute)}';
     final zipPath = p.join(root.parent.path, 'AllOne_backup_$stamp.zip');
 
     final encoder = ZipFileEncoder();
@@ -25,7 +26,9 @@ class BackupService {
 
     await for (final entity in root.list(recursive: true)) {
       if (entity is File && !entity.path.endsWith('.tmp')) {
-        final rel = p.relative(entity.path, from: root.path).replaceAll('\\', '/');
+        final rel = p
+            .relative(entity.path, from: root.path)
+            .replaceAll('\\', '/');
         final bytes = await entity.readAsBytes();
         encoder.addArchiveFile(ArchiveFile(rel, bytes.length, bytes));
       }

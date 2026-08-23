@@ -27,7 +27,8 @@ class MediaUtils {
   /// 把源文件复制到指定目录，返回目标路径（返回相对目录的文件名）
   static Future<String?> copyToDir(File src, Directory destDir) async {
     if (!await destDir.exists()) await destDir.create(recursive: true);
-    final name = '${DateTime.now().millisecondsSinceEpoch}_${src.uri.pathSegments.last}';
+    final name =
+        '${DateTime.now().millisecondsSinceEpoch}_${src.uri.pathSegments.last}';
     final dest = File('${destDir.path}${Platform.pathSeparator}$name');
     await src.copy(dest.path);
     return name;
@@ -43,7 +44,10 @@ class MediaUtils {
   static Future<void> startRecording(String path) async {
     final recorder = AudioRecorder();
     if (!await recorder.hasPermission()) return;
-    await recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
+    await recorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc),
+      path: path,
+    );
   }
 
   /// 停止录音，返回文件路径

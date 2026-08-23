@@ -80,10 +80,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
       ),
       body: TabBarView(
         controller: _tab,
-        children: const [
-          _WeekView(),
-          _CourseStatsView(),
-        ],
+        children: const [_WeekView(), _CourseStatsView()],
       ),
     );
   }
@@ -109,7 +106,9 @@ class _WeekView extends ConsumerWidget {
               width: 150,
               margin: const EdgeInsets.symmetric(horizontal: 3),
               decoration: BoxDecoration(
-                color: w == today ? AppTheme.primary.withValues(alpha: 0.06) : AppTheme.surface,
+                color: w == today
+                    ? AppTheme.primary.withValues(alpha: 0.06)
+                    : AppTheme.surface,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Column(
@@ -119,8 +118,9 @@ class _WeekView extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
                       color: w == today ? AppTheme.primary : Colors.transparent,
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(10)),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(10),
+                      ),
                     ),
                     child: Text(
                       '周${_weekNames[w - 1]}',
@@ -166,10 +166,14 @@ class _WeekView extends ConsumerWidget {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 2),
-          Text('${c.startTime}-${c.endTime}',
-              style: const TextStyle(fontSize: 11, color: AppTheme.primary)),
-          Text(c.classroom.isEmpty ? '' : c.classroom,
-              style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+          Text(
+            '${c.startTime}-${c.endTime}',
+            style: const TextStyle(fontSize: 11, color: AppTheme.primary),
+          ),
+          Text(
+            c.classroom.isEmpty ? '' : c.classroom,
+            style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+          ),
         ],
       ),
     );
@@ -185,8 +189,10 @@ class _CourseStatsView extends ConsumerWidget {
     final courses = ref.watch(courseListProvider).valueOrNull ?? [];
     if (courses.isEmpty) {
       return const Center(
-        child: Text('暂无课程，点击右上角 + 添加',
-            style: TextStyle(color: AppTheme.textSecondary)),
+        child: Text(
+          '暂无课程，点击右上角 + 添加',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
       );
     }
     return ListView.builder(
@@ -201,8 +207,10 @@ class _CourseStatsView extends ConsumerWidget {
               radius: 16,
               child: Icon(Icons.school, color: Colors.white, size: 18),
             ),
-            title: Text(c.name.isEmpty ? '（未命名课程）' : c.name,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            title: Text(
+              c.name.isEmpty ? '（未命名课程）' : c.name,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
             subtitle: Text(
               '周${_weekNames[c.weekday - 1]} ${c.startTime}-${c.endTime}',
               style: const TextStyle(fontSize: 12),
@@ -216,8 +224,13 @@ class _CourseStatsView extends ConsumerWidget {
                 const SizedBox(height: 6),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('课程说明：${c.notes}',
-                      style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+                  child: Text(
+                    '课程说明：${c.notes}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
                 ),
               ],
             ],
@@ -235,11 +248,19 @@ class _CourseStatsView extends ConsumerWidget {
         children: [
           SizedBox(
             width: 60,
-            child: Text(label,
-                style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+              ),
+            ),
           ),
           Expanded(
-            child: Text(value.isEmpty ? '—' : value, style: const TextStyle(fontSize: 13)),
+            child: Text(
+              value.isEmpty ? '—' : value,
+              style: const TextStyle(fontSize: 13),
+            ),
           ),
         ],
       ),
@@ -266,12 +287,18 @@ class TermManagePage extends ConsumerWidget {
               TextField(
                 controller: nameCtrl,
                 autofocus: true,
-                decoration: const InputDecoration(labelText: '学期名称（如：2026 秋季学期）'),
+                decoration: const InputDecoration(
+                  labelText: '学期名称（如：2026 秋季学期）',
+                ),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('开始日期'),
-                subtitle: Text(start == null ? '未设置' : '${start!.year}-${start!.month}-${start!.day}'),
+                subtitle: Text(
+                  start == null
+                      ? '未设置'
+                      : '${start!.year}-${start!.month}-${start!.day}',
+                ),
                 onTap: () async {
                   final d = await showDatePicker(
                     context: context,
@@ -285,7 +312,11 @@ class TermManagePage extends ConsumerWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('结束日期'),
-                subtitle: Text(end == null ? '未设置' : '${end!.year}-${end!.month}-${end!.day}'),
+                subtitle: Text(
+                  end == null
+                      ? '未设置'
+                      : '${end!.year}-${end!.month}-${end!.day}',
+                ),
                 onTap: () async {
                   final d = await showDatePicker(
                     context: context,
@@ -299,19 +330,31 @@ class TermManagePage extends ConsumerWidget {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('创建')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('创建'),
+            ),
           ],
         ),
       ),
     );
     if (saved == true) {
-      await ref.read(termListProvider.notifier).saveTerm(Term(
-            id: AppPaths.newId(),
-            name: nameCtrl.text.trim(),
-            start: start == null ? '' : '${start!.year}-${start!.month}-${start!.day}',
-            end: end == null ? '' : '${end!.year}-${end!.month}-${end!.day}',
-          ));
+      await ref
+          .read(termListProvider.notifier)
+          .saveTerm(
+            Term(
+              id: AppPaths.newId(),
+              name: nameCtrl.text.trim(),
+              start: start == null
+                  ? ''
+                  : '${start!.year}-${start!.month}-${start!.day}',
+              end: end == null ? '' : '${end!.year}-${end!.month}-${end!.day}',
+            ),
+          );
     }
   }
 
@@ -323,20 +366,28 @@ class TermManagePage extends ConsumerWidget {
       body: terms.when(
         data: (list) => list.isEmpty
             ? const Center(
-                child: Text('暂无学期，点击右下角 + 创建',
-                    style: TextStyle(color: AppTheme.textSecondary)))
+                child: Text(
+                  '暂无学期，点击右下角 + 创建',
+                  style: TextStyle(color: AppTheme.textSecondary),
+                ),
+              )
             : ListView.builder(
                 itemCount: list.length,
                 itemBuilder: (ctx, i) {
                   final t = list[i];
                   return Card(
                     child: ListTile(
-                      leading: const Icon(Icons.date_range, color: AppTheme.primary),
+                      leading: const Icon(
+                        Icons.date_range,
+                        color: AppTheme.primary,
+                      ),
                       title: Text(t.name.isEmpty ? '未命名学期' : t.name),
                       subtitle: Text('${t.start} ~ ${t.end}'),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete_outline),
-                        onPressed: () => ref.read(termListProvider.notifier).deleteTerm(t.id),
+                        onPressed: () => ref
+                            .read(termListProvider.notifier)
+                            .deleteTerm(t.id),
                       ),
                     ),
                   );

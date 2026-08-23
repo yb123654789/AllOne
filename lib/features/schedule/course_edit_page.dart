@@ -84,7 +84,7 @@ class _CourseEditPageState extends ConsumerState<CourseEditPage> {
     final t = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(
-        hour: parts.length > 0 ? int.tryParse(parts[0]) ?? 8 : 8,
+        hour: parts.isNotEmpty ? int.tryParse(parts[0]) ?? 8 : 8,
         minute: parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0,
       ),
     );
@@ -101,18 +101,27 @@ class _CourseEditPageState extends ConsumerState<CourseEditPage> {
       appBar: AppBar(
         title: Text(widget.course == null ? '添加课程' : '编辑课程'),
         actions: [
-          IconButton(onPressed: _save, tooltip: '保存', icon: const Icon(Icons.save_outlined)),
+          IconButton(
+            onPressed: _save,
+            tooltip: '保存',
+            icon: const Icon(Icons.save_outlined),
+          ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           DropdownButtonFormField<String>(
-            initialValue: _termId.isEmpty && terms.isNotEmpty ? terms.first.id : _termId,
+            initialValue: _termId.isEmpty && terms.isNotEmpty
+                ? terms.first.id
+                : _termId,
             decoration: const InputDecoration(labelText: '所属学期'),
             items: [
               for (final t in terms)
-                DropdownMenuItem(value: t.id, child: Text(t.name.isEmpty ? '未命名学期' : t.name)),
+                DropdownMenuItem(
+                  value: t.id,
+                  child: Text(t.name.isEmpty ? '未命名学期' : t.name),
+                ),
             ],
             onChanged: (v) => _termId = v ?? '',
           ),
@@ -178,8 +187,10 @@ class _CourseEditPageState extends ConsumerState<CourseEditPage> {
             decoration: const InputDecoration(labelText: '课程说明（课程要求 / 相关资料）'),
           ),
           const SizedBox(height: 16),
-          Text('（课程表每半年一个学期，可在课程表页管理学期）',
-              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+          Text(
+            '（课程表每半年一个学期，可在课程表页管理学期）',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
         ],
       ),
     );

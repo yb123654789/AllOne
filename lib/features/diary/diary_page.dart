@@ -38,7 +38,10 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
         title: const Text('删除日记'),
         content: Text('确定删除「${e.title.isEmpty ? '无标题' : e.title}」吗？该操作不可恢复。'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
@@ -83,17 +86,24 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
   }
 
   Widget _empty() => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.auto_stories_outlined, size: 64, color: AppTheme.textSecondary.withValues(alpha: 0.4)),
-            const SizedBox(height: 12),
-            const Text('还没有日记', style: TextStyle(color: AppTheme.textSecondary)),
-            const SizedBox(height: 4),
-            const Text('点击右下角 + 开始记录', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-          ],
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.auto_stories_outlined,
+          size: 64,
+          color: AppTheme.textSecondary.withValues(alpha: 0.4),
         ),
-      );
+        const SizedBox(height: 12),
+        const Text('还没有日记', style: TextStyle(color: AppTheme.textSecondary)),
+        const SizedBox(height: 4),
+        const Text(
+          '点击右下角 + 开始记录',
+          style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+        ),
+      ],
+    ),
+  );
 
   Widget _list(List<DiaryEntry> entries) {
     return ListView.builder(
@@ -118,15 +128,27 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
               Row(
                 children: [
                   if (e.pinned) ...[
-                    const Icon(Icons.push_pin, size: 16, color: AppTheme.danger),
+                    const Icon(
+                      Icons.push_pin,
+                      size: 16,
+                      color: AppTheme.danger,
+                    ),
                     const SizedBox(width: 4),
                   ],
                   if (e.timeStamp.enabled) ...[
-                    const Icon(Icons.schedule, size: 16, color: AppTheme.primary),
+                    const Icon(
+                      Icons.schedule,
+                      size: 16,
+                      color: AppTheme.primary,
+                    ),
                     const SizedBox(width: 4),
                   ],
                   if (e.locationStamp.enabled) ...[
-                    const Icon(Icons.location_on, size: 16, color: Colors.green),
+                    const Icon(
+                      Icons.location_on,
+                      size: 16,
+                      color: Colors.green,
+                    ),
                     const SizedBox(width: 4),
                   ],
                   Expanded(
@@ -134,12 +156,18 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
                       e.title.isEmpty ? '无标题' : e.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   Text(
                     _fmtDate(e.createdAt),
-                    style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -149,7 +177,10 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
                   summary,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
               ],
               if (e.tags.isNotEmpty) ...[
@@ -158,14 +189,25 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
                   spacing: 6,
                   runSpacing: 4,
                   children: e.tags
-                      .map((t) => Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(10),
+                      .map(
+                        (t) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            t,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.primary,
                             ),
-                            child: Text(t, style: const TextStyle(fontSize: 11, color: AppTheme.primary)),
-                          ))
+                          ),
+                        ),
+                      )
                       .toList(),
                 ),
               ],

@@ -72,7 +72,13 @@ class HabitCheckinNotifier extends AsyncNotifier<Map<String, CheckinMap>> {
   }
 }
 
-final habitListProvider =
-    AsyncNotifierProvider<HabitListNotifier, List<Habit>>(HabitListNotifier.new);
+final habitListProvider = AsyncNotifierProvider<HabitListNotifier, List<Habit>>(
+  HabitListNotifier.new,
+);
 final habitCheckinProvider =
-    AsyncNotifierProvider<HabitCheckinNotifier, Map<String, CheckinMap>>(HabitCheckinNotifier.new);
+    AsyncNotifierProvider<HabitCheckinNotifier, Map<String, CheckinMap>>(
+      HabitCheckinNotifier.new,
+    );
+
+/// 习惯附件目录
+String habitMediaDir(String habitId) => 'habit/habits/$habitId/media';

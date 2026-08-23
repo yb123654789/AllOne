@@ -45,7 +45,7 @@ class _RichTextEditorState extends State<RichTextEditor> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        if (widget.showToolbar)
+        if (widget.showToolbar) ...[
           QuillSimpleToolbar(
             controller: widget.controller,
             config: const QuillSimpleToolbarConfig(
@@ -71,6 +71,16 @@ class _RichTextEditorState extends State<RichTextEditor> {
               showRedo: true,
             ),
           ),
+          Container(
+            width: double.infinity,
+            color: const Color(0x0A2F6FED),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: const Text(
+              '💡 先点击正文获得光标，或选中文字，再用上方工具栏设置 加粗 · 斜体 · 变色 · 列表 等格式',
+              style: TextStyle(fontSize: 11, color: Color(0xFF2F6FED)),
+            ),
+          ),
+        ],
         Expanded(
           child: QuillEditor.basic(
             controller: widget.controller,
@@ -81,6 +91,7 @@ class _RichTextEditorState extends State<RichTextEditor> {
               expands: false,
               padding: widget.padding,
               scrollable: true,
+              autoFocus: true,
             ),
           ),
         ),

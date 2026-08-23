@@ -5,11 +5,18 @@ import 'package:allone/core/widgets/rich_text_editor.dart';
 import 'package:allone/features/diary/diary_models.dart';
 import 'package:allone/features/todo/todo_models.dart';
 import 'package:allone/features/habit/habit_models.dart';
+import 'package:allone/features/calendar/lunar_calendar.dart';
+import 'package:allone/features/calendar/holiday_data.dart';
+import 'package:allone/features/ledger/ledger_models.dart';
 
 void main() {
   group('通用模型', () {
     test('MediaAttachment JSON 往返', () {
-      const m = MediaAttachment(type: MediaType.photo, file: 'a.jpg', size: 123);
+      const m = MediaAttachment(
+        type: MediaType.photo,
+        file: 'a.jpg',
+        size: 123,
+      );
       final restored = MediaAttachment.fromJson(m.toJson());
       expect(restored.type, MediaType.photo);
       expect(restored.file, 'a.jpg');
@@ -23,7 +30,12 @@ void main() {
       expect(ts2.nodeDate, '2027-02-20');
       expect(ts2.pinTop, true);
 
-      const loc = LocationStamp(enabled: true, lat: 30.6, lng: 104.06, name: '家');
+      const loc = LocationStamp(
+        enabled: true,
+        lat: 30.6,
+        lng: 104.06,
+        name: '家',
+      );
       final loc2 = LocationStamp.fromJson(loc.toJson());
       expect(loc2.lat, 30.6);
       expect(loc2.name, '家');
@@ -45,7 +57,9 @@ void main() {
         updatedAt: DateTime(2026, 8, 20, 1),
         timeStamp: const TimeStamp(enabled: true, nodeDate: '2027-02-20'),
         tags: const ['生活'],
-        media: const [MediaAttachment(type: MediaType.audio, file: 'r.m4a', size: 10)],
+        media: const [
+          MediaAttachment(type: MediaType.audio, file: 'r.m4a', size: 10),
+        ],
       );
       final restored = DiaryEntry.fromJson(e.toJson());
       expect(restored.id, 'id1');
@@ -54,6 +68,22 @@ void main() {
       expect(restored.tags, ['生活']);
       expect(restored.media.length, 1);
       expect(restored.media.first.type, MediaType.audio);
+      expect(restored.mode, DiaryMode.rich);
+    });
+
+    test('DiaryEntry 纯文本模式 JSON 往返', () {
+      final e = DiaryEntry(
+        id: 'id2',
+        mode: DiaryMode.plain,
+        contentDelta: '',
+        plainText: '纯文本正文',
+        createdAt: DateTime(2026, 8, 20),
+        updatedAt: DateTime(2026, 8, 20),
+      );
+      final restored = DiaryEntry.fromJson(e.toJson());
+      expect(restored.mode, DiaryMode.plain);
+      expect(restored.plainText, '纯文本正文');
+      expect(restored.contentDelta, '');
     });
   });
 
@@ -63,7 +93,12 @@ void main() {
         id: 't1',
         title: '任务',
         mode: TodoMode.rich,
-        deadline: const DeadlineInfo(date: '2026-08-25', time: '18:00', color: '#E5484D', highlight: true),
+        deadline: const DeadlineInfo(
+          date: '2026-08-25',
+          time: '18:00',
+          color: '#E5484D',
+          highlight: true,
+        ),
         location: const LocationInfo(text: '图书馆', highlight: true),
         status: TodoStatus.pending,
         createdAt: DateTime(2026, 8, 20),
@@ -89,6 +124,34 @@ void main() {
         updatedAt: DateTime.now(),
       );
       expect(c.progress, closeTo(2 / 3, 0.0001));
+    });
+
+    test('TodoTemplate JSON 往返', () {
+      final t = TodoTemplate(
+        id: 'tp1',
+        name: '周报',
+        title: '周报',
+        mode: TodoMode.rich,
+        contentPlain: '周报内容',
+        contentRich: '[]',
+        deadline: const DeadlineInfo(
+          date: '2026-08-28',
+          time: '18:00',
+          color: '#E5484D',
+          highlight: true,
+        ),
+        location: const LocationInfo(text: '办公室'),
+        tags: const ['工作'],
+        createdAt: DateTime(2026, 8, 20),
+        updatedAt: DateTime(2026, 8, 20),
+      );
+      final restored = TodoTemplate.fromJson(t.toJson());
+      expect(restored.name, '周报');
+      expect(restored.mode, TodoMode.rich);
+      expect(restored.deadline.date, '2026-08-28');
+      expect(restored.deadline.highlight, true);
+      expect(restored.location.text, '办公室');
+      expect(restored.tags, ['工作']);
     });
   });
 
@@ -123,6 +186,42 @@ void main() {
     test('QuillCodec 空字符串返回空文档', () {
       final doc = QuillCodec.decode('');
       expect(doc.toPlainText().trim(), isEmpty);
+    });
+  });
+
+  group('农历与节假日', () {
+    test('2026-02-17 为农历正月初一（春节）', () {
+      final l = LunarCalendar.solarToLunar(DateTime(2026, 2, 17));
+      expect(l.month, 1);
+      expect(l.day, 1);
+    });
+
+    test('内置节假日包含春节 / 中秋 / 国庆等', () {
+      final holidays = HolidayProvider.builtInHolidaysForYear(2026);
+      final names = holidays.map((h) => h.name).toSet();
+      expect(names.contains('春节'), isTrue);
+      expect(names.contains('中秋节'), isTrue);
+      expect(names.contains('国庆节'), isTrue);
+      expect(names.contains('元旦'), isTrue);
+      expect(names.contains('端午节'), isTrue);
+      // 春节在 1–2 月
+      final chunjie = holidays.where((h) => h.name == '春节').first;
+      expect(chunjie.date.substring(5, 7), anyOf('01', '02'));
+      // 全部为 holiday 类型
+      expect(holidays.every((h) => h.type == 'holiday'), isTrue);
+    });
+  });
+
+  group('记账设置', () {
+    test('LedgerSettings JSON 往返', () {
+      const s = LedgerSettings(monthlyBudget: 2000);
+      final restored = LedgerSettings.fromJson(s.toJson());
+      expect(restored.monthlyBudget, 2000);
+    });
+
+    test('LedgerSettings 空/默认容错', () {
+      final restored = LedgerSettings.fromJson(null);
+      expect(restored.monthlyBudget, 0);
     });
   });
 }

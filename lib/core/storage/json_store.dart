@@ -51,7 +51,10 @@ class JsonStore {
   }
 
   /// 原子写入 JSON 数组文件。
-  Future<void> writeList(String relativePath, List<Map<String, dynamic>> json) async {
+  Future<void> writeList(
+    String relativePath,
+    List<Map<String, dynamic>> json,
+  ) async {
     final file = File('${root.path}${Platform.pathSeparator}$relativePath');
     await file.parent.create(recursive: true);
     final content = const JsonEncoder.withIndent('  ').convert(json);
@@ -84,16 +87,21 @@ class JsonStore {
   }
 
   /// 列出某目录下的文件（不含 .tmp）。
-  Future<List<String>> listFiles(String relativeDir, {String extension = '.json'}) async {
+  Future<List<String>> listFiles(
+    String relativeDir, {
+    String extension = '.json',
+  }) async {
     final dir = Directory('${root.path}${Platform.pathSeparator}$relativeDir');
     try {
       if (!await dir.exists()) return [];
       return await dir
           .list()
-          .where((e) =>
-              e is File &&
-              e.path.endsWith(extension) &&
-              !e.path.endsWith('.tmp'))
+          .where(
+            (e) =>
+                e is File &&
+                e.path.endsWith(extension) &&
+                !e.path.endsWith('.tmp'),
+          )
           .map((e) => e.path.split(Platform.pathSeparator).last)
           .toList();
     } catch (_) {

@@ -66,7 +66,10 @@ class CourseListNotifier extends AsyncNotifier<List<Course>> {
   }
 }
 
-final termListProvider =
-    AsyncNotifierProvider<TermListNotifier, List<Term>>(TermListNotifier.new);
+final termListProvider = AsyncNotifierProvider<TermListNotifier, List<Term>>(
+  TermListNotifier.new,
+);
 final courseListProvider =
-    AsyncNotifierProvider<CourseListNotifier, List<Course>>(CourseListNotifier.new);
+    AsyncNotifierProvider<CourseListNotifier, List<Course>>(
+      CourseListNotifier.new,
+    );

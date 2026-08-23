@@ -72,9 +72,13 @@ class DiaryTemplateListNotifier extends AsyncNotifier<List<DiaryTemplate>> {
 }
 
 final diaryListProvider =
-    AsyncNotifierProvider<DiaryListNotifier, List<DiaryEntry>>(DiaryListNotifier.new);
-final diaryTemplateListProvider = AsyncNotifierProvider<DiaryTemplateListNotifier,
-    List<DiaryTemplate>>(DiaryTemplateListNotifier.new);
+    AsyncNotifierProvider<DiaryListNotifier, List<DiaryEntry>>(
+      DiaryListNotifier.new,
+    );
+final diaryTemplateListProvider =
+    AsyncNotifierProvider<DiaryTemplateListNotifier, List<DiaryTemplate>>(
+      DiaryTemplateListNotifier.new,
+    );
 
 /// 生成附件保存目录相对路径
 String diaryMediaDir(String entryId) => 'diary/entries/$entryId/media';

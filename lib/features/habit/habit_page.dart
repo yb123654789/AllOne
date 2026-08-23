@@ -39,18 +39,26 @@ class HabitPage extends ConsumerWidget {
   }
 
   Widget _empty() => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.repeat_outlined, size: 64, color: AppTheme.textSecondary.withValues(alpha: 0.4)),
-            const SizedBox(height: 12),
-            const Text('还没有习惯', style: TextStyle(color: AppTheme.textSecondary)),
-          ],
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.repeat_outlined,
+          size: 64,
+          color: AppTheme.textSecondary.withValues(alpha: 0.4),
         ),
-      );
+        const SizedBox(height: 12),
+        const Text('还没有习惯', style: TextStyle(color: AppTheme.textSecondary)),
+      ],
+    ),
+  );
 
-  Widget _list(BuildContext context, WidgetRef ref, List<Habit> habits,
-      Map<String, CheckinMap> checkins) {
+  Widget _list(
+    BuildContext context,
+    WidgetRef ref,
+    List<Habit> habits,
+    Map<String, CheckinMap> checkins,
+  ) {
     final today = AppTime.dateOnly(DateTime.now());
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 88),
@@ -64,9 +72,17 @@ class HabitPage extends ConsumerWidget {
     );
   }
 
-  Widget _card(BuildContext context, WidgetRef ref, Habit h, CheckinMap cm, bool doneToday) {
+  Widget _card(
+    BuildContext context,
+    WidgetRef ref,
+    Habit h,
+    CheckinMap cm,
+    bool doneToday,
+  ) {
     final target = h.target.value;
-    final current = h.target.type == HabitType.count ? cm.totalCount : cm.totalDays;
+    final current = h.target.type == HabitType.count
+        ? cm.totalCount
+        : cm.totalDays;
     final progress = target <= 0 ? 0.0 : (current / target).clamp(0.0, 1.0);
     return Card(
       child: Padding(
@@ -79,7 +95,10 @@ class HabitPage extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     h.title.isEmpty ? '未命名习惯' : h.title,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 _checkinButton(context, ref, h, doneToday),
@@ -92,19 +111,57 @@ class HabitPage extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Text(
                   '${h.target.type == HabitType.count ? '次数' : '天数'} $current/$target',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
                 const SizedBox(width: 8),
-                Text('连续 ${cm.streakDays(DateTime.now())} 天',
-                    style: const TextStyle(fontSize: 12, color: AppTheme.primary)),
+                Text(
+                  '连续 ${cm.streakDays(DateTime.now())} 天',
+                  style: const TextStyle(fontSize: 12, color: AppTheme.primary),
+                ),
               ],
             ),
             if (h.description.isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text(h.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+              Text(
+                h.description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ],
+            if (h.tags.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: h.tags
+                    .map(
+                      (t) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          t,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.primary,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
             ],
             const SizedBox(height: 8),
             ClipRRect(
@@ -122,7 +179,12 @@ class HabitPage extends ConsumerWidget {
     );
   }
 
-  Widget _checkinButton(BuildContext context, WidgetRef ref, Habit h, bool doneToday) {
+  Widget _checkinButton(
+    BuildContext context,
+    WidgetRef ref,
+    Habit h,
+    bool doneToday,
+  ) {
     return TextButton.icon(
       onPressed: () async {
         final today = AppTime.dateOnly(DateTime.now());
@@ -133,8 +195,11 @@ class HabitPage extends ConsumerWidget {
           await notifier.checkin(h.id, today);
         }
       },
-      icon: Icon(doneToday ? Icons.check_circle : Icons.radio_button_unchecked,
-          color: doneToday ? Colors.green : AppTheme.primary, size: 20),
+      icon: Icon(
+        doneToday ? Icons.check_circle : Icons.radio_button_unchecked,
+        color: doneToday ? Colors.green : AppTheme.primary,
+        size: 20,
+      ),
       label: Text(doneToday ? '已打卡' : '打卡'),
       style: TextButton.styleFrom(
         foregroundColor: doneToday ? Colors.green : AppTheme.primary,
@@ -149,7 +214,10 @@ class HabitPage extends ConsumerWidget {
         color: AppTheme.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(text, style: const TextStyle(fontSize: 11, color: AppTheme.primary)),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 11, color: AppTheme.primary),
+      ),
     );
   }
 }

@@ -6,6 +6,7 @@ import 'todo_chains_page.dart';
 import 'todo_edit_page.dart';
 import 'todo_models.dart';
 import 'todo_repository.dart';
+import 'todo_templates_page.dart';
 
 /// 待办事项模块入口页。
 class TodoPage extends ConsumerWidget {
@@ -18,6 +19,14 @@ class TodoPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('待办事项'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.description_outlined),
+            tooltip: '待办模板',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TodoTemplatesPage()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.account_tree_outlined),
             tooltip: '任务链',
@@ -45,15 +54,19 @@ class TodoPage extends ConsumerWidget {
   }
 
   Widget _empty() => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.checklist, size: 64, color: AppTheme.textSecondary.withValues(alpha: 0.4)),
-            const SizedBox(height: 12),
-            const Text('还没有待办', style: TextStyle(color: AppTheme.textSecondary)),
-          ],
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.checklist,
+          size: 64,
+          color: AppTheme.textSecondary.withValues(alpha: 0.4),
         ),
-      );
+        const SizedBox(height: 12),
+        const Text('还没有待办', style: TextStyle(color: AppTheme.textSecondary)),
+      ],
+    ),
+  );
 
   Widget _list(BuildContext context, WidgetRef ref, List<TodoItem> items) {
     final pending = items.where((e) => e.status != TodoStatus.done).toList();
@@ -67,7 +80,10 @@ class TodoPage extends ConsumerWidget {
         if (done.isNotEmpty) ...[
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text('已完成', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+            child: Text(
+              '已完成',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            ),
           ),
           for (final e in done) _tile(context, ref, e),
         ],
@@ -93,7 +109,10 @@ class TodoPage extends ConsumerWidget {
                 value: done,
                 onChanged: (v) => ref
                     .read(todoListProvider.notifier)
-                    .setStatus(e.id, v == true ? TodoStatus.done : TodoStatus.pending),
+                    .setStatus(
+                      e.id,
+                      v == true ? TodoStatus.done : TodoStatus.pending,
+                    ),
               ),
               Expanded(
                 child: Column(
@@ -109,12 +128,17 @@ class TodoPage extends ConsumerWidget {
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w500,
-                              decoration: done ? TextDecoration.lineThrough : null,
-                              color: done ? AppTheme.textSecondary : AppTheme.textPrimary,
+                              decoration: done
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: done
+                                  ? AppTheme.textSecondary
+                                  : AppTheme.textPrimary,
                             ),
                           ),
                         ),
-                        if (e.deadline.date.isNotEmpty || e.location.text.isNotEmpty)
+                        if (e.deadline.date.isNotEmpty ||
+                            e.location.text.isNotEmpty)
                           IconButton(
                             visualDensity: VisualDensity.compact,
                             icon: const Icon(Icons.more_vert, size: 18),
@@ -136,14 +160,18 @@ class TodoPage extends ConsumerWidget {
                         _hex(e.location.color),
                         e.location.highlight,
                       ),
-                    if (e.contentPlain.trim().isNotEmpty && e.mode == TodoMode.plain)
+                    if (e.contentPlain.trim().isNotEmpty &&
+                        e.mode == TodoMode.plain)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: Text(
                           e.contentPlain.trim().replaceAll('\n', ' '),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
                       ),
                   ],
@@ -176,7 +204,11 @@ class TodoPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _itemMenu(BuildContext context, WidgetRef ref, TodoItem e) async {
+  Future<void> _itemMenu(
+    BuildContext context,
+    WidgetRef ref,
+    TodoItem e,
+  ) async {
     final act = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(

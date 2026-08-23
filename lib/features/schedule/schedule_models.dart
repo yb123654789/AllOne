@@ -5,17 +5,26 @@ class Term {
   final String start; // yyyy-MM-dd
   final String end; // yyyy-MM-dd
 
-  const Term({required this.id, this.name = '', this.start = '', this.end = ''});
+  const Term({
+    required this.id,
+    this.name = '',
+    this.start = '',
+    this.end = '',
+  });
 
-  Map<String, dynamic> toJson() =>
-      {'id': id, 'name': name, 'start': start, 'end': end};
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'start': start,
+    'end': end,
+  };
 
   factory Term.fromJson(Map<String, dynamic> j) => Term(
-        id: j['id'] as String? ?? '',
-        name: j['name'] as String? ?? '',
-        start: j['start'] as String? ?? '',
-        end: j['end'] as String? ?? '',
-      );
+    id: j['id'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    start: j['start'] as String? ?? '',
+    end: j['end'] as String? ?? '',
+  );
 }
 
 /// 课程
@@ -45,28 +54,33 @@ class Course {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'termId': termId,
-        'name': name,
-        'teacher': teacher,
-        'classroom': classroom,
-        'weekday': weekday,
-        'startTime': startTime,
-        'endTime': endTime,
-        'weeks': weeks,
-        'notes': notes,
-      };
+    'id': id,
+    'termId': termId,
+    'name': name,
+    'teacher': teacher,
+    'classroom': classroom,
+    'weekday': weekday,
+    'startTime': startTime,
+    'endTime': endTime,
+    'weeks': weeks,
+    'notes': notes,
+  };
 
   factory Course.fromJson(Map<String, dynamic> j) => Course(
-        id: j['id'] as String? ?? '',
-        termId: j['termId'] as String? ?? '',
-        name: j['name'] as String? ?? '',
-        teacher: j['teacher'] as String? ?? '',
-        classroom: j['classroom'] as String? ?? '',
-        weekday: (j['weekday'] as num?)?.toInt() ?? 1,
-        startTime: j['startTime'] as String? ?? '08:00',
-        endTime: j['endTime'] as String? ?? '09:40',
-        weeks: (j['weeks'] as List?)?.whereType<num>().map((e) => e.toInt()).toList() ?? const [],
-        notes: j['notes'] as String? ?? '',
-      );
+    id: j['id'] as String? ?? '',
+    termId: j['termId'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    teacher: j['teacher'] as String? ?? '',
+    classroom: j['classroom'] as String? ?? '',
+    weekday: (j['weekday'] as num?)?.toInt() ?? 1,
+    startTime: j['startTime'] as String? ?? '08:00',
+    endTime: j['endTime'] as String? ?? '09:40',
+    weeks:
+        (j['weeks'] as List?)
+            ?.whereType<num>()
+            .map((e) => e.toInt())
+            .toList() ??
+        const [],
+    notes: j['notes'] as String? ?? '',
+  );
 }

@@ -23,7 +23,9 @@ class TodoChainsPage extends ConsumerWidget {
             TextField(
               controller: titleCtrl,
               autofocus: true,
-              decoration: const InputDecoration(labelText: '任务链名称（如：学习 Python）'),
+              decoration: const InputDecoration(
+                labelText: '任务链名称（如：学习 Python）',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -34,24 +36,38 @@ class TodoChainsPage extends ConsumerWidget {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('创建')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('创建'),
+          ),
         ],
       ),
     );
     if (saved == true) {
       final now = DateTime.now();
-      await ref.read(taskChainListProvider.notifier).saveChain(TaskChain(
-            id: AppPaths.newId(),
-            title: titleCtrl.text.trim(),
-            goal: goalCtrl.text.trim(),
-            createdAt: now,
-            updatedAt: now,
-          ));
+      await ref
+          .read(taskChainListProvider.notifier)
+          .saveChain(
+            TaskChain(
+              id: AppPaths.newId(),
+              title: titleCtrl.text.trim(),
+              goal: goalCtrl.text.trim(),
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
     }
   }
 
-  Future<void> _addSubTask(BuildContext context, WidgetRef ref, TaskChain chain) async {
+  Future<void> _addSubTask(
+    BuildContext context,
+    WidgetRef ref,
+    TaskChain chain,
+  ) async {
     final ctrl = TextEditingController();
     final saved = await showDialog<bool>(
       context: context,
@@ -64,8 +80,14 @@ class TodoChainsPage extends ConsumerWidget {
           onSubmitted: (_) => Navigator.pop(ctx, true),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('添加')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('添加'),
+          ),
         ],
       ),
     );
@@ -81,14 +103,21 @@ class TodoChainsPage extends ConsumerWidget {
     }
   }
 
-  Future<void> _deleteChain(BuildContext context, WidgetRef ref, TaskChain chain) async {
+  Future<void> _deleteChain(
+    BuildContext context,
+    WidgetRef ref,
+    TaskChain chain,
+  ) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('删除任务链'),
         content: Text('确定删除「${chain.title}」吗？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
@@ -110,9 +139,12 @@ class TodoChainsPage extends ConsumerWidget {
       body: async.when(
         data: (chains) => chains.isEmpty
             ? const Center(
-                child: Text('暂无任务链\n点击右下角 + 创建长期任务链',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppTheme.textSecondary)))
+                child: Text(
+                  '暂无任务链\n点击右下角 + 创建长期任务链',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTheme.textSecondary),
+                ),
+              )
             : ListView.builder(
                 padding: const EdgeInsets.only(bottom: 88),
                 itemCount: chains.length,
@@ -142,7 +174,10 @@ class TodoChainsPage extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     c.title.isEmpty ? '未命名任务链' : c.title,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -152,7 +187,13 @@ class TodoChainsPage extends ConsumerWidget {
               ],
             ),
             if (c.goal.isNotEmpty)
-              Text(c.goal, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+              Text(
+                c.goal,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
             const SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
@@ -164,8 +205,13 @@ class TodoChainsPage extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text('进度 $doneCount/${c.subTasks.length}（${(c.progress * 100).toStringAsFixed(0)}%）',
-                style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+            Text(
+              '进度 $doneCount/${c.subTasks.length}（${(c.progress * 100).toStringAsFixed(0)}%）',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppTheme.textSecondary,
+              ),
+            ),
             const SizedBox(height: 8),
             for (final s in c.subTasks)
               CheckboxListTile(
@@ -177,7 +223,9 @@ class TodoChainsPage extends ConsumerWidget {
                   s.title,
                   style: TextStyle(
                     decoration: s.done ? TextDecoration.lineThrough : null,
-                    color: s.done ? AppTheme.textSecondary : AppTheme.textPrimary,
+                    color: s.done
+                        ? AppTheme.textSecondary
+                        : AppTheme.textPrimary,
                   ),
                 ),
                 onChanged: (v) => ref

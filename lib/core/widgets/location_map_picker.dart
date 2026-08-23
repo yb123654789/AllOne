@@ -20,7 +20,8 @@ class LocationMapPicker {
   }) {
     return showDialog<LatLng>(
       context: context,
-      builder: (_) => _PickerDialog(initialLat: lat, initialLng: lng, name: name),
+      builder: (_) =>
+          _PickerDialog(initialLat: lat, initialLng: lng, name: name),
     );
   }
 }
@@ -80,7 +81,10 @@ class _PickerDialogState extends State<_PickerDialog> {
                   Expanded(
                     child: Text(
                       widget.name == null ? '地图选点' : '地图选点 · ${widget.name}',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -99,13 +103,17 @@ class _PickerDialogState extends State<_PickerDialog> {
                 options: MapOptions(
                   initialCenter: _selected,
                   initialZoom: 13,
-                  onTap: (tapPosition, point) => setState(() => _selected = point),
+                  onTap: (tapPosition, point) =>
+                      setState(() => _selected = point),
                 ),
                 children: [
                   TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.allone.app',
-                    tileProvider: OfflineFirstTileProvider(offlineRoot: _offlineRoot),
+                    tileProvider: OfflineFirstTileProvider(
+                      offlineRoot: _offlineRoot,
+                    ),
                   ),
                   MarkerLayer(
                     markers: [
@@ -113,8 +121,11 @@ class _PickerDialogState extends State<_PickerDialog> {
                         point: _selected,
                         width: 44,
                         height: 44,
-                        child: const Icon(Icons.location_pin,
-                            size: 44, color: AppTheme.danger),
+                        child: const Icon(
+                          Icons.location_pin,
+                          size: 44,
+                          color: AppTheme.danger,
+                        ),
                       ),
                     ],
                   ),
@@ -131,12 +142,18 @@ class _PickerDialogState extends State<_PickerDialog> {
                   Text(
                     '经度 ${_selected.longitude.toStringAsFixed(6)}　'
                     '纬度 ${_selected.latitude.toStringAsFixed(6)}',
-                    style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   const Text(
                     '点击地图标记位置 · 离线瓦片存放于 AllOneData/map_tiles 时可离线使用',
-                    style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Row(

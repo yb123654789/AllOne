@@ -21,14 +21,15 @@ class MediaAttachment {
   });
 
   Map<String, dynamic> toJson() => {
-        'type': type.name,
-        if (file != null) 'file': file,
-        if (external != null) 'external': external,
-        'size': size,
-        if (note != null) 'note': note,
-      };
+    'type': type.name,
+    if (file != null) 'file': file,
+    if (external != null) 'external': external,
+    'size': size,
+    if (note != null) 'note': note,
+  };
 
-  factory MediaAttachment.fromJson(Map<String, dynamic> json) => MediaAttachment(
+  factory MediaAttachment.fromJson(Map<String, dynamic> json) =>
+      MediaAttachment(
         type: MediaType.values.firstWhere(
           (e) => e.name == json['type'],
           orElse: () => MediaType.file,
@@ -48,8 +49,11 @@ class TimeStamp {
 
   const TimeStamp({this.enabled = false, this.nodeDate, this.pinTop = false});
 
-  Map<String, dynamic> toJson() =>
-      {'enabled': enabled, if (nodeDate != null) 'nodeDate': nodeDate, 'pinTop': pinTop};
+  Map<String, dynamic> toJson() => {
+    'enabled': enabled,
+    if (nodeDate != null) 'nodeDate': nodeDate,
+    'pinTop': pinTop,
+  };
 
   factory TimeStamp.fromJson(Map<String, dynamic>? json) => json == null
       ? const TimeStamp()
@@ -67,14 +71,19 @@ class LocationStamp {
   final double lng;
   final String name;
 
-  const LocationStamp({this.enabled = false, this.lat = 0, this.lng = 0, this.name = ''});
+  const LocationStamp({
+    this.enabled = false,
+    this.lat = 0,
+    this.lng = 0,
+    this.name = '',
+  });
 
   Map<String, dynamic> toJson() => {
-        'enabled': enabled,
-        'lat': lat,
-        'lng': lng,
-        'name': name,
-      };
+    'enabled': enabled,
+    'lat': lat,
+    'lng': lng,
+    'name': name,
+  };
 
   factory LocationStamp.fromJson(Map<String, dynamic>? json) => json == null
       ? const LocationStamp()

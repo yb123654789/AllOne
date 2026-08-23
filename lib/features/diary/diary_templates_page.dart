@@ -34,7 +34,10 @@ class DiaryTemplatesPage extends ConsumerWidget {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('保存'),
@@ -43,24 +46,35 @@ class DiaryTemplatesPage extends ConsumerWidget {
       ),
     );
     if (saved == true) {
-      await ref.read(diaryTemplateListProvider.notifier).save(DiaryTemplate(
-            id: AppPaths.newId(),
-            name: nameCtrl.text.trim(),
-            contentDelta: contentCtrl.text.trim(),
-            plainText: contentCtrl.text.trim(),
-            createdAt: DateTime.now(),
-          ));
+      await ref
+          .read(diaryTemplateListProvider.notifier)
+          .save(
+            DiaryTemplate(
+              id: AppPaths.newId(),
+              name: nameCtrl.text.trim(),
+              contentDelta: contentCtrl.text.trim(),
+              plainText: contentCtrl.text.trim(),
+              createdAt: DateTime.now(),
+            ),
+          );
     }
   }
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, DiaryTemplate t) async {
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    DiaryTemplate t,
+  ) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('删除模板'),
         content: Text('确定删除模板「${t.name}」吗？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
@@ -82,15 +96,21 @@ class DiaryTemplatesPage extends ConsumerWidget {
       body: async.when(
         data: (templates) => templates.isEmpty
             ? const Center(
-                child: Text('暂无模板，点击右下角 + 创建',
-                    style: TextStyle(color: AppTheme.textSecondary)))
+                child: Text(
+                  '暂无模板，点击右下角 + 创建',
+                  style: TextStyle(color: AppTheme.textSecondary),
+                ),
+              )
             : ListView.builder(
                 itemCount: templates.length,
                 itemBuilder: (ctx, i) {
                   final t = templates[i];
                   return Card(
                     child: ListTile(
-                      leading: const Icon(Icons.description_outlined, color: AppTheme.primary),
+                      leading: const Icon(
+                        Icons.description_outlined,
+                        color: AppTheme.primary,
+                      ),
                       title: Text(t.name.isEmpty ? '未命名模板' : t.name),
                       subtitle: Text(
                         t.plainText.isEmpty ? '（空模板）' : t.plainText,

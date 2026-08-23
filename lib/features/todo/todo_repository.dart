@@ -19,7 +19,9 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
     list.sort((a, b) {
       // 未完成在前，再按截止时间
       if (a.status != b.status) return a.status == TodoStatus.pending ? -1 : 1;
-      return (a.deadline.date + a.deadline.time).compareTo(b.deadline.date + b.deadline.time);
+      return (a.deadline.date + a.deadline.time).compareTo(
+        b.deadline.date + b.deadline.time,
+      );
     });
     return list;
   }
@@ -40,7 +42,9 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
     final items = state.valueOrNull ?? [];
     final idx = items.indexWhere((e) => e.id == id);
     if (idx < 0) return;
-    await saveItem(items[idx].copyWith(status: status, updatedAt: DateTime.now()));
+    await saveItem(
+      items[idx].copyWith(status: status, updatedAt: DateTime.now()),
+    );
   }
 }
 
@@ -73,7 +77,11 @@ class TaskChainListNotifier extends AsyncNotifier<List<TaskChain>> {
     ref.invalidateSelf();
   }
 
-  Future<void> toggleSubTask(String chainId, String subTaskId, bool done) async {
+  Future<void> toggleSubTask(
+    String chainId,
+    String subTaskId,
+    bool done,
+  ) async {
     final chains = state.valueOrNull ?? [];
     final idx = chains.indexWhere((c) => c.id == chainId);
     if (idx < 0) return;
@@ -90,9 +98,48 @@ class TaskChainListNotifier extends AsyncNotifier<List<TaskChain>> {
 }
 
 final todoListProvider =
-    AsyncNotifierProvider<TodoListNotifier, List<TodoItem>>(TodoListNotifier.new);
+    AsyncNotifierProvider<TodoListNotifier, List<TodoItem>>(
+      TodoListNotifier.new,
+    );
 final taskChainListProvider =
-    AsyncNotifierProvider<TaskChainListNotifier, List<TaskChain>>(TaskChainListNotifier.new);
+    AsyncNotifierProvider<TaskChainListNotifier, List<TaskChain>>(
+      TaskChainListNotifier.new,
+    );
+
+/// 待办模板列表 Notifier
+class TodoTemplateListNotifier extends AsyncNotifier<List<TodoTemplate>> {
+  static const _dir = 'todo/templates';
+
+  @override
+  Future<List<TodoTemplate>> build() async {
+    final store = await ref.watch(jsonStoreProvider.future);
+    final files = await store.listFiles(_dir);
+    final list = <TodoTemplate>[];
+    for (final f in files) {
+      final json = await store.read('$_dir/$f');
+      if (json != null) list.add(TodoTemplate.fromJson(json));
+    }
+    list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return list;
+  }
+
+  Future<void> save(TodoTemplate t) async {
+    final store = await ref.read(jsonStoreProvider.future);
+    await store.write('$_dir/${t.id}.json', t.toJson());
+    ref.invalidateSelf();
+  }
+
+  Future<void> delete(String id) async {
+    final store = await ref.read(jsonStoreProvider.future);
+    await store.delete('$_dir/$id.json');
+    ref.invalidateSelf();
+  }
+}
+
+final todoTemplateListProvider =
+    AsyncNotifierProvider<TodoTemplateListNotifier, List<TodoTemplate>>(
+      TodoTemplateListNotifier.new,
+    );
 
 /// 待办附件目录
 String todoMediaDir(String itemId) => 'todo/items/$itemId/media';

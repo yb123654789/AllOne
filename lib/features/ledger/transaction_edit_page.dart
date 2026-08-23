@@ -12,7 +12,8 @@ class TransactionEditPage extends ConsumerStatefulWidget {
   const TransactionEditPage({super.key, this.transaction});
 
   @override
-  ConsumerState<TransactionEditPage> createState() => _TransactionEditPageState();
+  ConsumerState<TransactionEditPage> createState() =>
+      _TransactionEditPageState();
 }
 
 class _TransactionEditPageState extends ConsumerState<TransactionEditPage> {
@@ -29,7 +30,9 @@ class _TransactionEditPageState extends ConsumerState<TransactionEditPage> {
   void initState() {
     super.initState();
     final t = widget.transaction;
-    _amountCtrl = TextEditingController(text: t == null ? '' : t.amount.toString());
+    _amountCtrl = TextEditingController(
+      text: t == null ? '' : t.amount.toString(),
+    );
     _categoryCtrl = TextEditingController(text: t?.category ?? '其他');
     _noteCtrl = TextEditingController(text: t?.note ?? '');
     if (t != null) {
@@ -51,23 +54,28 @@ class _TransactionEditPageState extends ConsumerState<TransactionEditPage> {
     final amount = double.tryParse(_amountCtrl.text.trim());
     if (amount == null || amount <= 0) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请输入有效金额')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('请输入有效金额')));
       }
       return;
     }
     if (_accountId.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请选择账户')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('请选择账户')));
       }
       return;
     }
     final t = Transaction(
       id: widget.transaction?.id ?? AppPaths.newId(),
       accountId: _accountId,
-      date: '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
+      date:
+          '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
       type: _type,
       amount: amount,
-      category: _categoryCtrl.text.trim().isEmpty ? '其他' : _categoryCtrl.text.trim(),
+      category: _categoryCtrl.text.trim().isEmpty
+          ? '其他'
+          : _categoryCtrl.text.trim(),
       note: _noteCtrl.text.trim(),
     );
     await ref.read(transactionListProvider.notifier).addTransaction(t);
@@ -77,12 +85,18 @@ class _TransactionEditPageState extends ConsumerState<TransactionEditPage> {
   @override
   Widget build(BuildContext context) {
     final accounts = ref.watch(accountListProvider).valueOrNull ?? [];
-    if (_accountId.isEmpty && accounts.isNotEmpty) _accountId = accounts.first.id;
+    if (_accountId.isEmpty && accounts.isNotEmpty) {
+      _accountId = accounts.first.id;
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.transaction == null ? '记一笔' : '编辑流水'),
         actions: [
-          IconButton(onPressed: _save, tooltip: '保存', icon: const Icon(Icons.save_outlined)),
+          IconButton(
+            onPressed: _save,
+            tooltip: '保存',
+            icon: const Icon(Icons.save_outlined),
+          ),
         ],
       ),
       body: ListView(
@@ -90,8 +104,16 @@ class _TransactionEditPageState extends ConsumerState<TransactionEditPage> {
         children: [
           SegmentedButton<TxType>(
             segments: const [
-              ButtonSegment(value: TxType.expense, label: Text('支出'), icon: Icon(Icons.remove_circle_outline)),
-              ButtonSegment(value: TxType.income, label: Text('收入'), icon: Icon(Icons.add_circle_outline)),
+              ButtonSegment(
+                value: TxType.expense,
+                label: Text('支出'),
+                icon: Icon(Icons.remove_circle_outline),
+              ),
+              ButtonSegment(
+                value: TxType.income,
+                label: Text('收入'),
+                icon: Icon(Icons.add_circle_outline),
+              ),
             ],
             selected: {_type},
             onSelectionChanged: (s) => setState(() => _type = s.first),
@@ -99,11 +121,16 @@ class _TransactionEditPageState extends ConsumerState<TransactionEditPage> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            initialValue: _accountId.isEmpty && accounts.isNotEmpty ? accounts.first.id : _accountId,
+            initialValue: _accountId.isEmpty && accounts.isNotEmpty
+                ? accounts.first.id
+                : _accountId,
             decoration: const InputDecoration(labelText: '账户'),
             items: [
               for (final a in accounts)
-                DropdownMenuItem(value: a.id, child: Text('${a.icon} ${a.name}')),
+                DropdownMenuItem(
+                  value: a.id,
+                  child: Text('${a.icon} ${a.name}'),
+                ),
             ],
             onChanged: (v) => setState(() => _accountId = v ?? ''),
           ),
@@ -126,10 +153,12 @@ class _TransactionEditPageState extends ConsumerState<TransactionEditPage> {
             spacing: 6,
             runSpacing: 6,
             children: _categories
-                .map((c) => ActionChip(
-                      label: Text(c, style: const TextStyle(fontSize: 12)),
-                      onPressed: () => setState(() => _categoryCtrl.text = c),
-                    ))
+                .map(
+                  (c) => ActionChip(
+                    label: Text(c, style: const TextStyle(fontSize: 12)),
+                    onPressed: () => setState(() => _categoryCtrl.text = c),
+                  ),
+                )
                 .toList(),
           ),
           const SizedBox(height: 12),
@@ -143,7 +172,8 @@ class _TransactionEditPageState extends ConsumerState<TransactionEditPage> {
             leading: const Icon(Icons.event),
             title: const Text('日期'),
             subtitle: Text(
-                '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}'),
+              '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
+            ),
             onTap: () async {
               final d = await showDatePicker(
                 context: context,

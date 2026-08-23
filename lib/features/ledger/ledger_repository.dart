@@ -41,10 +41,13 @@ class TransactionListNotifier extends AsyncNotifier<List<Transaction>> {
     final store = await ref.watch(jsonStoreProvider.future);
     final accounts = await ref.watch(accountListProvider.future);
     final all = <Transaction>[];
+    // 流水文件为扁平格式：ledger/transactions/<accountId>_<yyyy-MM>.json
+    final files = await store.listFiles(_dir);
     for (final acc in accounts) {
-      final files = await store.listFiles('$_dir/$acc.id');
+      final prefix = '${acc.id}_';
       for (final f in files) {
-        final json = await store.read('$_dir/$acc.id/$f');
+        if (!f.startsWith(prefix)) continue;
+        final json = await store.read('$_dir/$f');
         if (json != null) {
           final m = MonthlyRecords.fromJson(json);
           all.addAll(m.records);
@@ -63,18 +66,26 @@ class TransactionListNotifier extends AsyncNotifier<List<Transaction>> {
     final records = existing == null
         ? <Transaction>[t]
         : [
-            ...MonthlyRecords.fromJson(existing).records.where((r) => r.id != t.id),
+            ...MonthlyRecords.fromJson(existing).records
+                .where((r) => r.id != t.id),
             t,
           ];
-    await store.write(path, MonthlyRecords(
-      accountId: t.accountId,
-      month: month,
-      records: records,
-    ).toJson());
+    await store.write(
+      path,
+      MonthlyRecords(
+        accountId: t.accountId,
+        month: month,
+        records: records,
+      ).toJson(),
+    );
     ref.invalidateSelf();
   }
 
-  Future<void> deleteTransaction(String id, String accountId, String date) async {
+  Future<void> deleteTransaction(
+    String id,
+    String accountId,
+    String date,
+  ) async {
     final store = await ref.read(jsonStoreProvider.future);
     final month = date.length >= 7 ? date.substring(0, 7) : date;
     final path = '$_dir/${accountId}_$month.json';
@@ -85,14 +96,47 @@ class TransactionListNotifier extends AsyncNotifier<List<Transaction>> {
     if (remaining.isEmpty) {
       await store.delete(path);
     } else {
-      await store.write(path,
-          MonthlyRecords(accountId: accountId, month: month, records: remaining).toJson());
+      await store.write(
+        path,
+        MonthlyRecords(
+          accountId: accountId,
+          month: month,
+          records: remaining,
+        ).toJson(),
+      );
     }
     ref.invalidateSelf();
   }
 }
 
 final accountListProvider =
-    AsyncNotifierProvider<AccountListNotifier, List<LedgerAccount>>(AccountListNotifier.new);
+    AsyncNotifierProvider<AccountListNotifier, List<LedgerAccount>>(
+      AccountListNotifier.new,
+    );
 final transactionListProvider =
-    AsyncNotifierProvider<TransactionListNotifier, List<Transaction>>(TransactionListNotifier.new);
+    AsyncNotifierProvider<TransactionListNotifier, List<Transaction>>(
+      TransactionListNotifier.new,
+    );
+
+/// 记账设置 Notifier（计划支出 / 预算）
+class LedgerSettingsNotifier extends AsyncNotifier<LedgerSettings> {
+  static const _path = 'ledger/settings.json';
+
+  @override
+  Future<LedgerSettings> build() async {
+    final store = await ref.watch(jsonStoreProvider.future);
+    final json = await store.read(_path);
+    return LedgerSettings.fromJson(json);
+  }
+
+  Future<void> setMonthlyBudget(double v) async {
+    final store = await ref.read(jsonStoreProvider.future);
+    await store.write(_path, LedgerSettings(monthlyBudget: v).toJson());
+    ref.invalidateSelf();
+  }
+}
+
+final ledgerSettingsProvider =
+    AsyncNotifierProvider<LedgerSettingsNotifier, LedgerSettings>(
+      LedgerSettingsNotifier.new,
+    );

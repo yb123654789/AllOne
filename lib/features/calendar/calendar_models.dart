@@ -14,14 +14,19 @@ class SpecialDay {
     this.color = '#E5484D',
   });
 
-  Map<String, dynamic> toJson() =>
-      {'id': id, 'date': date, 'name': name, 'type': type, 'color': color};
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'date': date,
+    'name': name,
+    'type': type,
+    'color': color,
+  };
 
   factory SpecialDay.fromJson(Map<String, dynamic> j) => SpecialDay(
-        id: j['id'] as String? ?? '',
-        date: j['date'] as String? ?? '',
-        name: j['name'] as String? ?? '',
-        type: j['type'] as String? ?? 'custom',
-        color: j['color'] as String? ?? '#E5484D',
-      );
+    id: j['id'] as String? ?? '',
+    date: j['date'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    type: j['type'] as String? ?? 'custom',
+    color: j['color'] as String? ?? '#E5484D',
+  );
 }

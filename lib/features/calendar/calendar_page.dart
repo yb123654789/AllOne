@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/common.dart';
 import '../../core/storage/app_paths.dart';
 import '../../core/theme.dart';
+import '../diary/diary_models.dart';
+import '../diary/diary_repository.dart';
 import '../habit/habit_models.dart';
 import '../habit/habit_repository.dart';
 import '../schedule/schedule_models.dart';
@@ -27,6 +29,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   @override
   Widget build(BuildContext context) {
     final todoAsync = ref.watch(todoListProvider);
+    final diaryAsync = ref.watch(diaryListProvider);
     final habitAsync = ref.watch(habitListProvider);
     final checkinAsync = ref.watch(habitCheckinProvider);
     final courseAsync = ref.watch(courseListProvider);
@@ -53,11 +56,23 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         ),
       ),
       body: todoAsync.when(
-        data: (todos) => habitAsync.when(
-          data: (habits) => checkinAsync.when(
-            data: (checkins) => courseAsync.when(
-              data: (courses) => specialAsync.when(
-                data: (specials) => _body(todos, habits, checkins, courses, specials),
+        data: (todos) => diaryAsync.when(
+          data: (diaries) => habitAsync.when(
+            data: (habits) => checkinAsync.when(
+              data: (checkins) => courseAsync.when(
+                data: (courses) => specialAsync.when(
+                  data: (specials) => _body(
+                    todos,
+                    diaries,
+                    habits,
+                    checkins,
+                    courses,
+                    specials,
+                  ),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Center(child: Text('加载失败：$e')),
+                ),
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(child: Text('加载失败：$e')),
               ),
@@ -78,6 +93,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   Widget _body(
     List<TodoItem> todos,
+    List<DiaryEntry> diaries,
     List<Habit> habits,
     Map<String, CheckinMap> checkins,
     List<Course> courses,
@@ -85,11 +101,27 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   ) {
     switch (_view) {
       case 0:
-        return DayView(todos: todos, habits: habits, checkins: checkins, courses: courses);
+        return DayView(
+          todos: todos,
+          diaries: diaries,
+          habits: habits,
+          checkins: checkins,
+          courses: courses,
+        );
       case 1:
-        return MonthView(todos: todos, checkins: checkins, specials: specials);
+        return MonthView(
+          todos: todos,
+          diaries: diaries,
+          checkins: checkins,
+          specials: specials,
+        );
       case 2:
-        return YearView(todos: todos, checkins: checkins, specials: specials);
+        return YearView(
+          todos: todos,
+          diaries: diaries,
+          checkins: checkins,
+          specials: specials,
+        );
       default:
         return const SizedBox();
     }
@@ -99,16 +131,19 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 /// —— 当天视图 ——
 class DayView extends StatelessWidget {
   final List<TodoItem> todos;
+  final List<DiaryEntry> diaries;
   final List<Habit> habits;
   final Map<String, CheckinMap> checkins;
   final List<Course> courses;
 
-  const DayView(
-      {super.key,
-      required this.todos,
-      required this.habits,
-      required this.checkins,
-      required this.courses});
+  const DayView({
+    super.key,
+    required this.todos,
+    required this.diaries,
+    required this.habits,
+    required this.checkins,
+    required this.courses,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -116,10 +151,13 @@ class DayView extends StatelessWidget {
     final today = AppTime.dateOnly(now);
 
     // 今天待办（未完成），按截止时间排序
-    final todayTodos = todos
-        .where((t) => t.status != TodoStatus.done && t.deadline.date == today)
-        .toList()
-      ..sort((a, b) => a.deadline.time.compareTo(b.deadline.time));
+    final todayTodos =
+        todos
+            .where(
+              (t) => t.status != TodoStatus.done && t.deadline.date == today,
+            )
+            .toList()
+          ..sort((a, b) => a.deadline.time.compareTo(b.deadline.time));
 
     // 今天课程
     final todayCourses = courses.where((c) => c.weekday == now.weekday).toList()
@@ -133,22 +171,45 @@ class DayView extends StatelessWidget {
         .where((h) => (checkins[h.id]?.entries[today] ?? 0) <= 0)
         .toList();
 
+    // 今天日记（按创建时间排序）
+    final todayDiaries =
+        diaries.where((d) => AppTime.dateOnly(d.createdAt) == today).toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
+        _header('今天日记（${todayDiaries.length}）'),
+        if (todayDiaries.isEmpty)
+          _empty('今天还没有写日记')
+        else
+          for (final d in todayDiaries)
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.menu_book, color: AppTheme.primary),
+              title: Text(d.title.isEmpty ? '（无标题）' : d.title),
+              subtitle: Text(
+                '${d.createdAt.hour.toString().padLeft(2, '0')}:${d.createdAt.minute.toString().padLeft(2, '0')}'
+                '${d.tags.isEmpty ? '' : '  ${d.tags.join(' · ')}'}',
+              ),
+            ),
         _header('待办事项（${todayTodos.length}）'),
-        if (todayTodos.isEmpty) _empty('今天没有到期待办')
+        if (todayTodos.isEmpty)
+          _empty('今天没有到期待办')
         else
           for (final t in todayTodos)
             ListTile(
               dense: true,
               leading: Icon(Icons.schedule, color: _hex(t.deadline.color)),
               title: Text(t.title.isEmpty ? '（无标题）' : t.title),
-              subtitle: Text('${t.deadline.time.isEmpty ? '全天' : t.deadline.time}'
-                  '${t.location.text.isEmpty ? '' : ' · ${t.location.text}'}'),
+              subtitle: Text(
+                '${t.deadline.time.isEmpty ? '全天' : t.deadline.time}'
+                '${t.location.text.isEmpty ? '' : ' · ${t.location.text}'}',
+              ),
             ),
         _header('课程（${todayCourses.length}）'),
-        if (todayCourses.isEmpty) _empty('今天没有课')
+        if (todayCourses.isEmpty)
+          _empty('今天没有课')
         else
           for (final c in todayCourses)
             ListTile(
@@ -158,21 +219,31 @@ class DayView extends StatelessWidget {
               subtitle: Text('${c.startTime}-${c.endTime}  ${c.classroom}'),
             ),
         _header('习惯打卡（已打卡 ${doneHabits.length} / ${habits.length}）'),
-        if (habits.isEmpty) _empty('还没有习惯')
+        if (habits.isEmpty)
+          _empty('还没有习惯')
         else ...[
           for (final h in doneHabits)
             ListTile(
               dense: true,
               leading: const Icon(Icons.check_circle, color: Colors.green),
               title: Text(h.title),
-              trailing: const Text('已打卡', style: TextStyle(fontSize: 12, color: Colors.green)),
+              trailing: const Text(
+                '已打卡',
+                style: TextStyle(fontSize: 12, color: Colors.green),
+              ),
             ),
           for (final h in pendingHabits)
             ListTile(
               dense: true,
-              leading: const Icon(Icons.radio_button_unchecked, color: AppTheme.textSecondary),
+              leading: const Icon(
+                Icons.radio_button_unchecked,
+                color: AppTheme.textSecondary,
+              ),
               title: Text(h.title),
-              trailing: const Text('待打卡', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+              trailing: const Text(
+                '待打卡',
+                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+              ),
             ),
         ],
       ],
@@ -180,14 +251,20 @@ class DayView extends StatelessWidget {
   }
 
   Widget _header(String s) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Text(s, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
-      );
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+    child: Text(
+      s,
+      style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+    ),
+  );
 
   Widget _empty(String s) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text(s, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    child: Text(
+      s,
+      style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+    ),
+  );
 
   Color _hex(String hex) {
     var h = hex.replaceFirst('#', '');
@@ -199,14 +276,17 @@ class DayView extends StatelessWidget {
 /// —— 当月视图：月历 + 完成情况可视化 + 特殊日子 ——
 class MonthView extends ConsumerStatefulWidget {
   final List<TodoItem> todos;
+  final List<DiaryEntry> diaries;
   final Map<String, CheckinMap> checkins;
   final List<SpecialDay> specials;
 
-  const MonthView(
-      {super.key,
-      required this.todos,
-      required this.checkins,
-      required this.specials});
+  const MonthView({
+    super.key,
+    required this.todos,
+    required this.diaries,
+    required this.checkins,
+    required this.specials,
+  });
 
   @override
   ConsumerState<MonthView> createState() => _MonthViewState();
@@ -224,6 +304,10 @@ class _MonthViewState extends ConsumerState<MonthView> {
 
   @override
   Widget build(BuildContext context) {
+    // 内置节假日（当前显示月份的年份）
+    final holidays =
+        ref.watch(holidayListProvider(_month.year)).valueOrNull ??
+        const <SpecialDay>[];
     return Column(
       children: [
         // 月份导航
@@ -241,7 +325,10 @@ class _MonthViewState extends ConsumerState<MonthView> {
                 child: Text(
                   '${_month.year} 年 ${_month.month} 月',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               IconButton(
@@ -260,9 +347,14 @@ class _MonthViewState extends ConsumerState<MonthView> {
             children: [
               for (final w in const ['一', '二', '三', '四', '五', '六', '日'])
                 Expanded(
-                  child: Text(w,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                  child: Text(
+                    w,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -278,16 +370,18 @@ class _MonthViewState extends ConsumerState<MonthView> {
               ),
               itemCount: _dayCount(),
               itemBuilder: (ctx, i) {
-                final day = _month.add(Duration(days: i - _firstWeekdayOffset()));
+                final day = _month.add(
+                  Duration(days: i - _firstWeekdayOffset()),
+                );
                 final date = AppTime.dateOnly(day);
                 final isCurrentMonth = day.month == _month.month;
-                return _dayCell(day, date, isCurrentMonth);
+                return _dayCell(day, date, isCurrentMonth, holidays);
               },
             ),
           ),
         ),
         // 选中日期详情 + 特殊日子
-        if (_selected != null) _selectedPanel(_selected!),
+        if (_selected != null) _selectedPanel(_selected!, holidays),
       ],
     );
   }
@@ -303,14 +397,27 @@ class _MonthViewState extends ConsumerState<MonthView> {
     return (cells / 7).ceil() * 7;
   }
 
-  Widget _dayCell(DateTime day, String date, bool isCurrentMonth) {
+  Widget _dayCell(
+    DateTime day,
+    String date,
+    bool isCurrentMonth,
+    List<SpecialDay> holidays,
+  ) {
     final now = AppTime.dateOnly(DateTime.now());
     final isToday = date == now;
-    final special = widget.specials.where((s) => s.date == date).firstOrNull;
-    // 完成情况：当天到期已完成的待办 + 习惯打卡
-    final dayTodos = widget.todos.where((t) => t.deadline.date == date).toList();
+    final allSpecials = [...widget.specials, ...holidays];
+    final special = allSpecials.where((s) => s.date == date).firstOrNull;
+    // 完成情况：当天到期已完成的待办 + 习惯打卡 + 日记
+    final dayTodos = widget.todos
+        .where((t) => t.deadline.date == date)
+        .toList();
     final doneCount = dayTodos.where((t) => t.status == TodoStatus.done).length;
-    final checkinCount = widget.checkins.values.where((c) => (c.entries[date] ?? 0) > 0).length;
+    final checkinCount = widget.checkins.values
+        .where((c) => (c.entries[date] ?? 0) > 0)
+        .length;
+    final diaryCount = widget.diaries
+        .where((d) => AppTime.dateOnly(d.createdAt) == date)
+        .length;
 
     return InkWell(
       onTap: () => setState(() => _selected = day),
@@ -321,10 +428,10 @@ class _MonthViewState extends ConsumerState<MonthView> {
           color: special != null
               ? _hex(special.color).withValues(alpha: 0.15)
               : isToday
-                  ? AppTheme.primary.withValues(alpha: 0.1)
-                  : isCurrentMonth
-                      ? Colors.white
-                      : AppTheme.surface,
+              ? AppTheme.primary.withValues(alpha: 0.1)
+              : isCurrentMonth
+              ? Colors.white
+              : AppTheme.surface,
           borderRadius: BorderRadius.circular(8),
           border: isToday ? Border.all(color: AppTheme.primary) : null,
         ),
@@ -336,19 +443,19 @@ class _MonthViewState extends ConsumerState<MonthView> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
-                color: isCurrentMonth ? AppTheme.textPrimary : AppTheme.textSecondary,
+                color: isCurrentMonth
+                    ? AppTheme.textPrimary
+                    : AppTheme.textSecondary,
               ),
             ),
             const SizedBox(height: 2),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (doneCount > 0)
-                  _dot(AppTheme.primary, doneCount),
-                if (checkinCount > 0)
-                  _dot(Colors.green, checkinCount),
-                if (special != null)
-                  _dot(_hex(special.color), 1),
+                if (doneCount > 0) _dot(AppTheme.primary, doneCount),
+                if (checkinCount > 0) _dot(Colors.green, checkinCount),
+                if (diaryCount > 0) _dot(const Color(0xFF7C3AED), diaryCount),
+                if (special != null) _dot(_hex(special.color), 1),
               ],
             ),
           ],
@@ -366,12 +473,20 @@ class _MonthViewState extends ConsumerState<MonthView> {
     );
   }
 
-  Widget _selectedPanel(DateTime day) {
+  Widget _selectedPanel(DateTime day, List<SpecialDay> holidays) {
     final date = AppTime.dateOnly(day);
     final dayTodos = widget.todos
         .where((t) => t.deadline.date == date)
         .toList();
-    final specials = widget.specials.where((s) => s.date == date).toList();
+    final specials = [
+      ...widget.specials,
+      ...holidays,
+    ].where((s) => s.date == date).toList();
+    final dayDiaries =
+        widget.diaries
+            .where((d) => AppTime.dateOnly(d.createdAt) == date)
+            .toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
     return Container(
       padding: const EdgeInsets.all(12),
       color: AppTheme.surface,
@@ -379,32 +494,67 @@ class _MonthViewState extends ConsumerState<MonthView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}',
-              style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text(
+            '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 4),
-          if (specials.isEmpty && dayTodos.isEmpty)
-            const Text('这一天暂无安排', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+          if (specials.isEmpty && dayTodos.isEmpty && dayDiaries.isEmpty)
+            const Text(
+              '这一天暂无安排',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
           for (final s in specials)
             ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.star, color: _hex(s.color)),
-              title: Text(s.name),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline, size: 18),
-                onPressed: () {
-                  ref.read(specialDayListProvider.notifier).delete(s.id);
-                },
+              leading: Icon(
+                s.type == 'holiday' ? Icons.celebration : Icons.star,
+                color: _hex(s.color),
               ),
+              title: Text(s.name),
+              subtitle: s.type == 'holiday'
+                  ? const Text(
+                      '内置节假日',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textSecondary,
+                      ),
+                    )
+                  : null,
+              trailing: s.type == 'custom'
+                  ? IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      onPressed: () {
+                        ref.read(specialDayListProvider.notifier).delete(s.id);
+                      },
+                    )
+                  : null,
             ),
           for (final t in dayTodos)
             ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              leading: Icon(t.status == TodoStatus.done ? Icons.check_circle : Icons.schedule,
-                  color: t.status == TodoStatus.done ? Colors.green : _hex(t.deadline.color)),
+              leading: Icon(
+                t.status == TodoStatus.done
+                    ? Icons.check_circle
+                    : Icons.schedule,
+                color: t.status == TodoStatus.done
+                    ? Colors.green
+                    : _hex(t.deadline.color),
+              ),
               title: Text(t.title.isEmpty ? '（无标题）' : t.title),
               subtitle: Text(t.deadline.time.isEmpty ? '全天' : t.deadline.time),
+            ),
+          for (final d in dayDiaries)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.menu_book, color: Color(0xFF7C3AED)),
+              title: Text(d.title.isEmpty ? '（无标题）' : d.title),
+              subtitle: Text(
+                '日记 ${d.createdAt.hour.toString().padLeft(2, '0')}:${d.createdAt.minute.toString().padLeft(2, '0')}',
+              ),
             ),
           TextButton.icon(
             onPressed: () => _addSpecialDay(day),
@@ -427,8 +577,13 @@ class _MonthViewState extends ConsumerState<MonthView> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('日期：${AppTime.dateOnly(day)}',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+              Text(
+                '日期：${AppTime.dateOnly(day)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: nameCtrl,
@@ -439,7 +594,13 @@ class _MonthViewState extends ConsumerState<MonthView> {
               Wrap(
                 spacing: 6,
                 children: [
-                  for (final c in const ['#E5484D', '#F5A623', '#30A46C', '#1E88E5', '#7C3AED'])
+                  for (final c in const [
+                    '#E5484D',
+                    '#F5A623',
+                    '#30A46C',
+                    '#1E88E5',
+                    '#7C3AED',
+                  ])
                     _ColorPick(
                       c: c,
                       selected: color == c,
@@ -450,20 +611,30 @@ class _MonthViewState extends ConsumerState<MonthView> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('保存')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('保存'),
+            ),
           ],
         ),
       ),
     );
     if (saved == true) {
-      await ref.read(specialDayListProvider.notifier).save(SpecialDay(
-        id: AppPaths.newId(),
-        date: AppTime.dateOnly(day),
-        name: nameCtrl.text.trim(),
-        type: 'custom',
-        color: color,
-      ));
+      await ref
+          .read(specialDayListProvider.notifier)
+          .save(
+            SpecialDay(
+              id: AppPaths.newId(),
+              date: AppTime.dateOnly(day),
+              name: nameCtrl.text.trim(),
+              type: 'custom',
+              color: color,
+            ),
+          );
     }
   }
 
@@ -479,7 +650,11 @@ class _ColorPick extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _ColorPick({required this.c, this.selected = false, required this.onTap});
+  const _ColorPick({
+    required this.c,
+    this.selected = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -506,20 +681,27 @@ class _ColorPick extends StatelessWidget {
 }
 
 /// —— 当年视图：12 个月精简概览 ——
-class YearView extends StatelessWidget {
+class YearView extends ConsumerWidget {
   final List<TodoItem> todos;
+  final List<DiaryEntry> diaries;
   final Map<String, CheckinMap> checkins;
   final List<SpecialDay> specials;
 
-  const YearView(
-      {super.key,
-      required this.todos,
-      required this.checkins,
-      required this.specials});
+  const YearView({
+    super.key,
+    required this.todos,
+    required this.diaries,
+    required this.checkins,
+    required this.specials,
+  });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final year = DateTime.now().year;
+    final holidays =
+        ref.watch(holidayListProvider(year)).valueOrNull ??
+        const <SpecialDay>[];
+    final allSpecials = [...specials, ...holidays];
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -532,24 +714,61 @@ class YearView extends StatelessWidget {
       itemBuilder: (ctx, i) {
         final month = i + 1;
         final ym = '$year-${month.toString().padLeft(2, '0')}';
-        final monthTodos = todos.where((t) => t.deadline.date.startsWith(ym)).toList();
-        final doneCount = monthTodos.where((t) => t.status == TodoStatus.done).length;
+        final monthTodos = todos
+            .where((t) => t.deadline.date.startsWith(ym))
+            .toList();
+        final doneCount = monthTodos
+            .where((t) => t.status == TodoStatus.done)
+            .length;
         final checkinCount = checkins.values
             .where((c) => c.entries.keys.any((k) => k.startsWith(ym)))
             .length;
-        final specialCount = specials.where((s) => s.date.startsWith(ym)).length;
+        final diaryCount = diaries
+            .where((d) => AppTime.dateOnly(d.createdAt).startsWith(ym))
+            .length;
+        final specialCount = allSpecials
+            .where((s) => s.date.startsWith(ym))
+            .length;
         return Card(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('$month 月', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              Text(
+                '$month 月',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 6),
-              Text('待办 $doneCount/${monthTodos.length}',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-              Text('打卡 $checkinCount',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-              Text('特殊 $specialCount',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+              Text(
+                '待办 $doneCount/${monthTodos.length}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              Text(
+                '打卡 $checkinCount',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              Text(
+                '日记 $diaryCount',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              Text(
+                '特殊 $specialCount',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
             ],
           ),
         );
