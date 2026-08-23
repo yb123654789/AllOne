@@ -59,9 +59,6 @@ dependencies:
   audioplayers: ^6.1.0
   video_player: ^2.9.2
 
-  # 富文本编辑（日记 / 待办富文本模式）
-  flutter_quill: ^11.5.1
-
   # 离线地图（地址戳）
   flutter_map: ^7.0.2
   latlong2: ^0.9.1

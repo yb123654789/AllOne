@@ -44,6 +44,8 @@ AllOneData/
 └── calendar/
     ├── special_days.json    # 日历界面创建的特殊日子/节假日
     └── settings.json
+settings/
+    └── nav.json             # 导航设置（侧边栏显示哪些功能）
 ```
 
 > 说明：**每个「条目」是一个目录**，内含一个 `*.json` 元数据文件 + `media/` 附件目录。
@@ -51,10 +53,7 @@ AllOneData/
 
 ## 2. 通用约定
 
-- 所有文本编码统一 **UTF-8**。
-- 时间统一 ISO 8601 字符串：`2026-08-20T09:30:00+08:00`。
-- ID 统一为 `yyyyMMddHHmmss-XXXX`（时间 + 随机后缀），避免冲突且天然有序。
-- JSON 中的富文本正文，另存一份 **纯文本版本**（`plainText` 字段），保证 txt 可读性。
+- 所有文本统一 UTF-8 编码，正文存纯文本（`plainText` / `contentPlain` / `description` 等），保证 txt 可读、格式通用。
 
 ## 3. 各模块数据模型（JSON Schema 摘要）
 
@@ -66,9 +65,7 @@ AllOneData/
   "type": "diary",
   "templateId": "tp-default",
   "title": "标题",
-  "mode": "plain | rich",
-  "contentMd": "Markdown 正文",
-  "plainText": "纯文本正文（与 contentMd 同步，便于 txt 读取）",
+  "plainText": "正文（纯文本，类似 txt）",
   "createdAt": "2026-08-20T10:30:00+08:00",
   "updatedAt": "2026-08-20T10:35:00+08:00",
   "stamps": {
@@ -86,8 +83,7 @@ AllOneData/
 }
 ```
 
-> `mode = plain`（纯文本，`contentDelta` 为空）或 `rich`（富文本，`contentDelta` 存 Delta JSON）。
-> 纯文本模式为手机 / 电脑键盘双适配编辑方式；无论哪种模式都会同步生成 `plainText` 保证通用可读。
+> 正文为**纯文本**（类似 txt），手机 / 电脑键盘双适配编辑。
 
 **大视频处理规则**：
 - 附件 ≥ 阈值（默认 50MB，可配置）→ 不复制进 `media/`，改为 `external` 外链引用（保存原路径 / 外部存储位置），正文中以链接形式展示。
@@ -99,41 +95,54 @@ AllOneData/
   "id": "202608201100-c3d4",
   "type": "todo",
   "title": "待办标题",
-  "mode": "plain | rich",
-  "contentPlain": "纯文本内容（txt 风格）",
-  "contentRich": "富文本内容（含勾选列表）",
+  "contentPlain": "内容（纯文本，txt 风格）",
   "deadline": { "date": "2026-08-25", "time": "18:00", "color": "#E53935", "highlight": true },
   "location": { "text": "图书馆 3F", "color": "#1E88E5", "highlight": true, "lat": 0, "lng": 0 },
   "status": "pending | done | archived",
-  "taskChainId": null,
   "media": [ "同日记 media 结构" ],
   "tags": [],
+  "children": [ "子任务（递归嵌套，任意层级，结构同本条）" ],
   "createdAt": "...", "updatedAt": "..."
 }
 ```
 
-### 3.3 任务链（抽箱式）`chains/`
+> **待办为树形结构**：每个待办可嵌套任意层级的子任务 `children`。
+> 普通待办 = 没有子任务；任务链 = 嵌套了子任务的普通待办，每个子任务都拥有完整功能
+> （标题 / 正文 / 截止 / 地点 / 标签 / 附件 / 状态）。
+
+### 3.3 任务链（树形待办）`items/`
+
+任务链已合并进普通待办，不再单独存储。一个含子任务的待办即构成一棵任务链树：
 
 ```json
 {
   "id": "chain-001",
   "title": "学习 Python",
-  "goal": "达到能独立开发脚本的水平",
-  "subTasks": [
-    { "id": "st-1", "title": "完成基础语法", "status": "done" },
+  "contentPlain": "达到能独立开发脚本的水平",
+  "status": "pending",
+  "children": [
+    {
+      "id": "st-1",
+      "title": "完成基础语法",
+      "contentPlain": "先看官方文档",
+      "status": "done",
+      "children": [
+        { "id": "st-1-1", "title": "循环练习", "status": "done" }
+      ]
+    },
     { "id": "st-2", "title": "完成数据处理练习", "status": "pending" }
   ],
-  "progress": 0.5,
   "createdAt": "...", "updatedAt": "..."
 }
 ```
 
-- 任务链是「抽箱式」设计：从任务链中抽取/推进子任务，进度累积。
-- 一个长期任务 = 一个任务链，包含多个从属于它的子任务。
+- 普通待办与任务链统一为**树形 TodoItem**：顶层条目一个文件（`todo/items/<id>.json`），子任务内嵌于父 JSON 的 `children`。
+- 每个节点（含子任务）都具备完整待办功能，可继续嵌套任意层。
+- 待办列表按树形展开/折叠展示，节点可添加子任务、勾选完成、编辑、删除。
 
 ### 3.4 待办模板 `templates/<templateId>.json`
 
-模板可整体保存「标题预设 + 内容（纯文本 / 富文本）+ 截止时间 + 地点 + 标签」，
+模板可整体保存「标题预设 + 内容（纯文本）+ 截止时间 + 地点 + 标签」，
 新建待办时一键套用：
 
 ```json
@@ -141,9 +150,7 @@ AllOneData/
   "id": "tp-001",
   "name": "周报",
   "title": "周报",
-  "mode": "plain | rich",
   "contentPlain": "模板纯文本内容",
-  "contentRich": "模板富文本 Delta JSON",
   "deadline": { "date": "2026-08-28", "time": "18:00", "color": "#E5484D", "highlight": true },
   "location": { "text": "办公室", "color": "#1E88E5", "highlight": false, "lat": 0, "lng": 0 },
   "tags": ["工作"],
@@ -161,14 +168,13 @@ AllOneData/
   "type": "duration | count",
   "target": { "unit": "天 | 次", "value": 30 },
   "description": "描述（纯文本）",
-  "descriptionRich": "描述（富文本 Delta JSON，可空）",
   "media": [],
   "tags": [],
   "createdAt": "..."
 }
 ```
 
-> 习惯描述支持**纯文本 / 富文本两种模式**（与待办一致），可附附件与标签。
+> 习惯描述为**纯文本**，可附附件与标签。
 
 打卡记录 `checkins/<habitId>_<yyyy-MM>.json`：
 ```json
@@ -252,6 +258,22 @@ AllOneData/
 > - **内置法定节假日 / 传统节日**（元旦、春节、清明、端午、中秋、国庆等，`type = holiday`）
 >   由代码在运行时动态生成（含农历算法，见 `calendar/lunar_calendar.dart`），**不落盘**，
 >   因此备份中无需包含，也不可被删除。
+
+### 3.9 导航设置 `settings/nav.json`
+
+```json
+{
+  "sidebarVisible": {
+    "diary": true,
+    "todo": true,
+    "habit": false
+  }
+}
+```
+
+> - 控制各功能（diary / todo / habit / schedule / ledger / calendar / tools）
+>   是否显示在**侧边栏 ☰** 中。
+> - 未配置的功能默认显示（缺省为 `true`）；关闭后仍可从「工具 → 功能导航」进入。
 
 ## 4. 备份格式
 

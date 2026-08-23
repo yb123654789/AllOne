@@ -30,7 +30,6 @@ class Habit {
   final String category;
   final HabitTarget target;
   final String description; // 描述（纯文本）
-  final String descriptionRich; // 描述（富文本 Delta，可空）
   final List<MediaAttachment> media;
   final List<String> tags;
   final DateTime createdAt;
@@ -42,7 +41,6 @@ class Habit {
     this.category = '通用',
     this.target = const HabitTarget(),
     this.description = '',
-    this.descriptionRich = '',
     this.media = const [],
     this.tags = const [],
     required this.createdAt,
@@ -55,7 +53,6 @@ class Habit {
     'category': category,
     'target': target.toJson(),
     'description': description,
-    'descriptionRich': descriptionRich,
     'media': media.map((m) => m.toJson()).toList(),
     'tags': tags,
     'createdAt': createdAt.toIso8601String(),
@@ -68,7 +65,6 @@ class Habit {
     category: json['category'] as String? ?? '通用',
     target: HabitTarget.fromJson(json['target'] as Map<String, dynamic>?),
     description: json['description'] as String? ?? '',
-    descriptionRich: json['descriptionRich'] as String? ?? '',
     media:
         (json['media'] as List?)
             ?.map((e) => MediaAttachment.fromJson(e as Map<String, dynamic>))
@@ -86,7 +82,6 @@ class Habit {
     String? category,
     HabitTarget? target,
     String? description,
-    String? descriptionRich,
     List<MediaAttachment>? media,
     List<String>? tags,
     DateTime? updatedAt,
@@ -96,7 +91,6 @@ class Habit {
     category: category ?? this.category,
     target: target ?? this.target,
     description: description ?? this.description,
-    descriptionRich: descriptionRich ?? this.descriptionRich,
     media: media ?? this.media,
     tags: tags ?? this.tags,
     createdAt: createdAt,

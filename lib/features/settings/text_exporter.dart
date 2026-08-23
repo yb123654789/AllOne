@@ -110,47 +110,45 @@ class TextExporter {
 
   static String _todo(WidgetRef ref) {
     final items = ref.read(todoListProvider).valueOrNull ?? [];
-    final chains = ref.read(taskChainListProvider).valueOrNull ?? [];
     final b = StringBuffer('# 待办事项\n\n');
-    if (items.isEmpty && chains.isEmpty) b.write('（暂无待办）\n');
-    if (items.isNotEmpty) {
-      b.write('## 待办\n\n');
-      for (final t in items) {
-        final done = t.status == TodoStatus.done;
-        b.write(
-          '- [${done ? 'x' : ' '}] ${t.title.isEmpty ? '（无标题）' : t.title}',
-        );
-        if (t.deadline.date.isNotEmpty) {
-          b.write(
-            '（截止 ${t.deadline.date}${t.deadline.time.isEmpty ? '' : ' ${t.deadline.time}'}）',
-          );
-        }
-        if (t.location.text.isNotEmpty) b.write('（地点：${t.location.text}）');
-        if (t.tags.isNotEmpty) b.write('（标签：${t.tags.join('、')}）');
-        b.write('\n');
-        if (t.contentPlain.trim().isNotEmpty) {
-          b.write('  ${t.contentPlain.trim().replaceAll('\n', '\n  ')}\n');
-        }
-        if (t.media.isNotEmpty) {
-          b.write(
-            '  附件：${t.media.map((m) => m.file ?? m.external ?? m.type.name).join('、')}\n',
-          );
-        }
-      }
-    }
-    if (chains.isNotEmpty) {
-      b.write('\n## 任务链（长期任务）\n\n');
-      for (final c in chains) {
-        b.write('### ${c.title.isEmpty ? '未命名任务链' : c.title}\n');
-        if (c.goal.isNotEmpty) b.write('目标：${c.goal}\n');
-        b.write('进度：${(c.progress * 100).toStringAsFixed(0)}%\n');
-        for (final s in c.subTasks) {
-          b.write('- [${s.done ? 'x' : ' '}] ${s.title}\n');
-        }
-        b.write('\n');
-      }
+    if (items.isEmpty) b.write('（暂无待办）\n');
+    for (final t in items) {
+      _writeTodoNode(b, t, 0);
     }
     return b.toString();
+  }
+
+  /// 递归导出待办树（子任务缩进）
+  static void _writeTodoNode(StringBuffer b, TodoItem t, int depth) {
+    final done = t.status == TodoStatus.done;
+    final indent = '  ' * depth;
+    b.write(
+      '$indent- [${done ? 'x' : ' '}] ${t.title.isEmpty ? '（无标题）' : t.title}',
+    );
+    if (t.deadline.date.isNotEmpty) {
+      b.write(
+        '（截止 ${t.deadline.date}${t.deadline.time.isEmpty ? '' : ' ${t.deadline.time}'}）',
+      );
+    }
+    if (t.location.text.isNotEmpty) b.write('（地点：${t.location.text}）');
+    if (t.tags.isNotEmpty) b.write('（标签：${t.tags.join('、')}）');
+    if (t.hasChildren) {
+      b.write(
+        '（子任务 ${t.children.where((c) => c.status == TodoStatus.done).length}/${t.children.length}）',
+      );
+    }
+    b.write('\n');
+    if (t.contentPlain.trim().isNotEmpty) {
+      b.write('$indent  ${t.contentPlain.trim().replaceAll('\n', '\n$indent  ')}\n');
+    }
+    if (t.media.isNotEmpty) {
+      b.write(
+        '$indent  附件：${t.media.map((m) => m.file ?? m.external ?? m.type.name).join('、')}\n',
+      );
+    }
+    for (final c in t.children) {
+      _writeTodoNode(b, c, depth + 1);
+    }
   }
 
   static String _habit(WidgetRef ref) {

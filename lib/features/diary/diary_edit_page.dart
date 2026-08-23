@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:path/path.dart' as p;
@@ -13,7 +12,6 @@ import '../../core/theme.dart';
 import '../../core/utils/media_utils.dart';
 import '../../core/widgets/location_map_picker.dart';
 import '../../core/widgets/location_map_view.dart';
-import '../../core/widgets/rich_text_editor.dart';
 import 'diary_models.dart';
 import 'diary_repository.dart';
 
@@ -35,13 +33,9 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
   late final String _entryId;
   late final TextEditingController _titleCtrl;
   late final TextEditingController _plainCtrl;
-  late final QuillController _quill;
   late final TextEditingController _tagInput;
   final List<String> _tags = [];
   final List<MediaAttachment> _media = [];
-
-  /// 编辑模式：纯文本（类似 txt，手机 / 电脑键盘友好）或富文本
-  DiaryMode _mode = DiaryMode.rich;
 
   bool _tsEnabled = false;
   DateTime? _tsNodeDate;
@@ -59,20 +53,8 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
     _entryId = e?.id ?? AppPaths.newId();
     _titleCtrl = TextEditingController(text: e?.title ?? '');
     _plainCtrl = TextEditingController(text: e?.plainText ?? '');
-    _quill = QuillController(
-      document: QuillCodec.decode(
-        e?.contentDelta ?? widget.template?.contentDelta ?? '',
-      ),
-      selection: const TextSelection.collapsed(offset: 0),
-    );
     _tagInput = TextEditingController();
     if (e != null) {
-      // 兼容旧数据：contentDelta 为空则按纯文本编辑
-      _mode =
-          e.mode == DiaryMode.plain ||
-              (e.contentDelta.isEmpty && e.plainText.isNotEmpty)
-          ? DiaryMode.plain
-          : DiaryMode.rich;
       _tags.addAll(e.tags);
       _media.addAll(e.media);
       _tsEnabled = e.timeStamp.enabled;
@@ -85,12 +67,8 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
       _locLat = e.locationStamp.lat;
       _locLng = e.locationStamp.lng;
     } else if (widget.template != null) {
-      // 模板新建：继承模板正文（模板无富文本则按纯文本编辑）
-      final t = widget.template!;
-      if (t.contentDelta.isEmpty) {
-        _mode = DiaryMode.plain;
-        _plainCtrl.text = t.plainText;
-      }
+      // 模板新建：继承模板正文
+      _plainCtrl.text = widget.template!.plainText;
     }
   }
 
@@ -98,26 +76,18 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
   void dispose() {
     _titleCtrl.dispose();
     _plainCtrl.dispose();
-    _quill.dispose();
     _tagInput.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final title = _titleCtrl.text.trim();
-    final plain = _mode == DiaryMode.plain
-        ? _plainCtrl.text
-        : _quill.document.toPlainText();
-    final delta = _mode == DiaryMode.rich
-        ? QuillCodec.encode(_quill.document)
-        : '';
+    final plain = _plainCtrl.text;
     final now = DateTime.now();
     final entry = DiaryEntry(
       id: _entryId,
       templateId: widget.template?.id ?? widget.entry?.templateId,
       title: title.isEmpty ? plain.split('\n').first : title,
-      mode: _mode,
-      contentDelta: delta,
       plainText: plain,
       createdAt: widget.entry?.createdAt ?? now,
       updatedAt: now,
@@ -268,47 +238,23 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
               decoration: const InputDecoration(hintText: '标题（留空则取正文首行）'),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: SegmentedButton<DiaryMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: DiaryMode.plain,
-                    label: Text('纯文本（txt）'),
-                  ),
-                  ButtonSegment(value: DiaryMode.rich, label: Text('富文本')),
-                ],
-                selected: {_mode},
-                onSelectionChanged: (s) => setState(() => _mode = s.first),
-                showSelectedIcon: false,
-              ),
-            ),
-          ),
           _buildStampsBar(context),
           Expanded(
-            child: _mode == DiaryMode.plain
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    child: TextField(
-                      controller: _plainCtrl,
-                      maxLines: null,
-                      expands: true,
-                      textAlignVertical: TextAlignVertical.top,
-                      style: const TextStyle(fontSize: 16, height: 1.6),
-                      decoration: const InputDecoration(
-                        hintText: '纯文本模式（类似 txt），手机 / 电脑键盘皆友好…',
-                        filled: false,
-                        border: InputBorder.none,
-                      ),
-                    ),
-                  )
-                : RichTextEditor(
-                    controller: _quill,
-                    placeholder: '开始记录今天的故事…',
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: TextField(
+                controller: _plainCtrl,
+                maxLines: null,
+                expands: true,
+                textAlignVertical: TextAlignVertical.top,
+                style: const TextStyle(fontSize: 16, height: 1.6),
+                decoration: const InputDecoration(
+                  hintText: '正文内容（类似 txt），手机 / 电脑键盘皆友好…',
+                  filled: false,
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
           ),
           _buildAttachmentBar(),
         ],
@@ -737,15 +683,8 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
     );
     if (t == null || !mounted) return;
     setState(() {
-      if (t.contentDelta.isNotEmpty) {
-        // 富文本模板：套用并切到富文本模式
-        _quill.document = QuillCodec.decode(t.contentDelta);
-        _mode = DiaryMode.rich;
-      } else {
-        // 纯文本模板：套用并切到纯文本模式
-        _plainCtrl.text = t.plainText;
-        _mode = DiaryMode.plain;
-      }
+      // 模板套用：填充正文
+      _plainCtrl.text = t.plainText;
     });
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

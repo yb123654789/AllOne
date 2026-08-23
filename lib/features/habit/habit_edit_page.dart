@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
@@ -10,7 +9,6 @@ import '../../core/storage/app_paths.dart';
 import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
 import '../../core/utils/media_utils.dart';
-import '../../core/widgets/rich_text_editor.dart';
 import 'habit_models.dart';
 import 'habit_repository.dart';
 
@@ -31,13 +29,9 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
   late final TextEditingController _titleCtrl;
   late final TextEditingController _categoryCtrl;
   late final TextEditingController _descCtrl;
-  late final QuillController _descRichCtrl;
   late final TextEditingController _targetCtrl;
   late final TextEditingController _tagInput;
   HabitType _type = HabitType.count;
-
-  /// 描述模式：纯文本 / 富文本（与待办一致）
-  bool _descRichMode = false;
   final List<MediaAttachment> _media = [];
   final List<String> _tags = [];
 
@@ -49,17 +43,12 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
     _titleCtrl = TextEditingController(text: h?.title ?? '');
     _categoryCtrl = TextEditingController(text: h?.category ?? '通用');
     _descCtrl = TextEditingController(text: h?.description ?? '');
-    _descRichCtrl = QuillController(
-      document: QuillCodec.decode(h?.descriptionRich ?? ''),
-      selection: const TextSelection.collapsed(offset: 0),
-    );
     _targetCtrl = TextEditingController(
       text: (h?.target.value ?? 30).toString(),
     );
     _tagInput = TextEditingController();
     _type = h?.target.type ?? HabitType.count;
     if (h != null) {
-      _descRichMode = h.descriptionRich.isNotEmpty;
       _media.addAll(h.media);
       _tags.addAll(h.tags);
     }
@@ -70,7 +59,6 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
     _titleCtrl.dispose();
     _categoryCtrl.dispose();
     _descCtrl.dispose();
-    _descRichCtrl.dispose();
     _targetCtrl.dispose();
     _tagInput.dispose();
     super.dispose();
@@ -88,12 +76,7 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
         type: _type,
         value: int.tryParse(_targetCtrl.text.trim()) ?? 30,
       ),
-      description: _descRichMode
-          ? _descRichCtrl.document.toPlainText()
-          : _descCtrl.text.trim(),
-      descriptionRich: _descRichMode
-          ? QuillCodec.encode(_descRichCtrl.document)
-          : '',
+      description: _descCtrl.text.trim(),
       media: List.of(_media),
       tags: List.of(_tags),
       createdAt: widget.habit?.createdAt ?? now,
@@ -242,37 +225,11 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              const Text('描述格式：', style: TextStyle(fontSize: 13)),
-              const SizedBox(width: 8),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: false, label: Text('纯文本')),
-                  ButtonSegment(value: true, label: Text('富文本')),
-                ],
-                selected: {_descRichMode},
-                onSelectionChanged: (s) =>
-                    setState(() => _descRichMode = s.first),
-                showSelectedIcon: false,
-              ),
-            ],
+          TextField(
+            controller: _descCtrl,
+            maxLines: 4,
+            decoration: const InputDecoration(labelText: '习惯描述（内容 / 备注）'),
           ),
-          const SizedBox(height: 12),
-          if (_descRichMode)
-            SizedBox(
-              height: 200,
-              child: RichTextEditor(
-                controller: _descRichCtrl,
-                placeholder: '习惯描述（富文本，可含列表 / 勾选）…',
-              ),
-            )
-          else
-            TextField(
-              controller: _descCtrl,
-              maxLines: 4,
-              decoration: const InputDecoration(labelText: '习惯描述（内容 / 备注）'),
-            ),
           const SizedBox(height: 16),
           Text(
             '标签',

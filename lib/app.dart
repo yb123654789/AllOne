@@ -1,8 +1,11 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'core/backup/backup_service.dart';
+import 'core/models/nav_settings.dart';
+import 'core/storage/nav_providers.dart';
 import 'core/theme.dart';
 import 'features/calendar/calendar_page.dart';
 import 'features/diary/diary_page.dart';
@@ -29,85 +32,55 @@ class AllOneApp extends StatelessWidget {
 }
 
 /// 主界面：底部导航切换六大功能模块。
-class HomeShell extends StatefulWidget {
+class HomeShell extends ConsumerWidget {
   const HomeShell({super.key});
 
-  @override
-  State<HomeShell> createState() => _HomeShellState();
-}
-
-class _HomeShellState extends State<HomeShell> {
-  int _index = 0;
-
-  static const _pages = <Widget>[
-    DiaryPage(),
-    TodoPage(),
-    HabitPage(),
-    SchedulePage(),
-    LedgerPage(),
-    CalendarPage(),
-    ToolsPage(),
-  ];
+  /// 功能 key -> 页面（顺序与 [kAppFeatures] 一致）
+  static final Map<String, Widget> _pages = {
+    'diary': const DiaryPage(),
+    'todo': const TodoPage(),
+    'habit': const HabitPage(),
+    'schedule': const SchedulePage(),
+    'ledger': const LedgerPage(),
+    'calendar': const CalendarPage(),
+    'tools': const ToolsPage(),
+  };
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final index = ref.watch(homeTabIndexProvider);
+    final children = [
+      for (final f in kAppFeatures) _pages[f.key] ?? const SizedBox.shrink(),
+    ];
     return Scaffold(
-      body: IndexedStack(index: _index, children: _pages),
+      body: IndexedStack(index: index, children: children),
       drawer: const AppDrawer(),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book),
-            label: '日记',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.check_circle_outline),
-            selectedIcon: Icon(Icons.check_circle),
-            label: '待办',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.repeat_outlined),
-            selectedIcon: Icon(Icons.repeat),
-            label: '习惯',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_view_week_outlined),
-            selectedIcon: Icon(Icons.calendar_view_week),
-            label: '课程',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet),
-            label: '记账',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month),
-            label: '日历',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.handyman_outlined),
-            selectedIcon: Icon(Icons.handyman),
-            label: '工具',
-          ),
+        selectedIndex: index,
+        onDestinationSelected: (i) =>
+            ref.read(homeTabIndexProvider.notifier).state = i,
+        destinations: [
+          for (final f in kAppFeatures)
+            NavigationDestination(
+              icon: Icon(f.icon),
+              selectedIcon: Icon(f.selectedIcon),
+              label: f.label,
+            ),
         ],
       ),
     );
   }
 }
 
-/// 侧边栏：一键导出/导入 + 设置等入口。
-class AppDrawer extends StatefulWidget {
+/// 侧边栏：功能快捷入口（可按配置隐藏）+ 一键导出/导入 + 设置。
+class AppDrawer extends ConsumerStatefulWidget {
   const AppDrawer({super.key});
 
   @override
-  State<AppDrawer> createState() => _AppDrawerState();
+  ConsumerState<AppDrawer> createState() => _AppDrawerState();
 }
 
-class _AppDrawerState extends State<AppDrawer> {
+class _AppDrawerState extends ConsumerState<AppDrawer> {
   bool _busy = false;
 
   /// 一键导出：打包全部数据为 zip 并分享（可存 U 盘）
@@ -195,6 +168,13 @@ class _AppDrawerState extends State<AppDrawer> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text('功能',
+                style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+          ),
+          ..._sidebarFeatureTiles(),
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Text('数据（一键备份 / 迁移）',
                 style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
           ),
@@ -214,8 +194,9 @@ class _AppDrawerState extends State<AppDrawer> {
           ),
           const Divider(),
           ListTile(
-            leading: const Icon(Icons.settings_outlined),
-            title: const Text('设置 / 更多'),
+            leading: const Icon(Icons.tune, color: AppTheme.primary),
+            title: const Text('设置 / 侧边栏管理'),
+            subtitle: const Text('选择哪些功能显示在侧边栏'),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
@@ -227,5 +208,37 @@ class _AppDrawerState extends State<AppDrawer> {
         ],
       ),
     );
+  }
+
+  /// 侧边栏的功能入口（按 [NavSettings] 过滤显示）；点击跳转到对应 tab。
+  List<Widget> _sidebarFeatureTiles() {
+    final nav = ref.watch(navSettingsProvider).valueOrNull ?? const NavSettings();
+    final current = ref.watch(homeTabIndexProvider);
+    return [
+      for (final f in kAppFeatures)
+        if (nav.isSidebarVisible(f.key))
+          ListTile(
+            leading: Icon(
+              current == kAppFeatures.indexOf(f)
+                  ? f.selectedIcon
+                  : f.icon,
+              color: current == kAppFeatures.indexOf(f)
+                  ? AppTheme.primary
+                  : null,
+            ),
+            title: Text(
+              f.label,
+              style: current == kAppFeatures.indexOf(f)
+                  ? const TextStyle(color: AppTheme.primary)
+                  : null,
+            ),
+            selected: current == kAppFeatures.indexOf(f),
+            onTap: () {
+              Navigator.pop(context);
+              ref.read(homeTabIndexProvider.notifier).state =
+                  kAppFeatures.indexOf(f);
+            },
+          ),
+    ];
   }
 }

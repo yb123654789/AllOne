@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
@@ -11,16 +10,17 @@ import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
 import '../../core/utils/media_utils.dart';
 import '../../core/widgets/location_map_picker.dart';
-import '../../core/widgets/rich_text_editor.dart';
 import 'todo_models.dart';
 import 'todo_repository.dart';
 import 'todo_templates_page.dart';
 
-/// 待办编辑页。
+/// 待办编辑页（也用于编辑子任务 / 新建子任务）。
+/// 传入 [parent] 时表示新建该父任务下的子任务。
 class TodoEditPage extends ConsumerStatefulWidget {
   final TodoItem? item;
+  final TodoItem? parent;
 
-  const TodoEditPage({super.key, this.item});
+  const TodoEditPage({super.key, this.item, this.parent});
 
   @override
   ConsumerState<TodoEditPage> createState() => _TodoEditPageState();
@@ -32,13 +32,10 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
   late final String _itemId;
   late final TextEditingController _titleCtrl;
   late final TextEditingController _plainCtrl;
-  late final QuillController _richCtrl;
   late final TextEditingController _tagInput;
-  TodoMode _mode = TodoMode.plain;
 
   DeadlineInfo _deadline = const DeadlineInfo();
   LocationInfo _location = const LocationInfo();
-  String? _chainId;
   final List<MediaAttachment> _media = [];
   final List<String> _tags = [];
 
@@ -49,16 +46,10 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
     _itemId = it?.id ?? AppPaths.newId();
     _titleCtrl = TextEditingController(text: it?.title ?? '');
     _plainCtrl = TextEditingController(text: it?.contentPlain ?? '');
-    _richCtrl = QuillController(
-      document: QuillCodec.decode(it?.contentRich ?? ''),
-      selection: const TextSelection.collapsed(offset: 0),
-    );
     _tagInput = TextEditingController();
     if (it != null) {
-      _mode = it.mode;
       _deadline = it.deadline;
       _location = it.location;
-      _chainId = it.taskChainId;
       _media.addAll(it.media);
       _tags.addAll(it.tags);
     }
@@ -68,7 +59,6 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
   void dispose() {
     _titleCtrl.dispose();
     _plainCtrl.dispose();
-    _richCtrl.dispose();
     _tagInput.dispose();
     super.dispose();
   }
@@ -78,23 +68,23 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
     final item = TodoItem(
       id: _itemId,
       title: _titleCtrl.text.trim(),
-      mode: _mode,
-      contentPlain: _mode == TodoMode.plain
-          ? _plainCtrl.text
-          : _richCtrl.document.toPlainText(),
-      contentRich: _mode == TodoMode.rich
-          ? QuillCodec.encode(_richCtrl.document)
-          : '',
+      contentPlain: _plainCtrl.text,
       deadline: _deadline,
       location: _location,
       status: widget.item?.status ?? TodoStatus.pending,
-      taskChainId: _chainId,
       media: List.of(_media),
       tags: List.of(_tags),
+      children: widget.item?.children ?? const [],
       createdAt: widget.item?.createdAt ?? now,
       updatedAt: now,
     );
-    await ref.read(todoListProvider.notifier).saveItem(item);
+    final notifier = ref.read(todoListProvider.notifier);
+    if (widget.parent != null && widget.item == null) {
+      // 新建子任务：挂到父节点下
+      await notifier.addChild(widget.parent!.id, item);
+    } else {
+      await notifier.saveItem(item);
+    }
     if (mounted) Navigator.pop(context);
   }
 
@@ -212,22 +202,6 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-            child: SegmentedButton<TodoMode>(
-              segments: const [
-                ButtonSegment(value: TodoMode.plain, label: Text('纯文本')),
-                ButtonSegment(value: TodoMode.rich, label: Text('富文本')),
-              ],
-              selected: {_mode},
-              onSelectionChanged: (s) => setState(() => _mode = s.first),
-              showSelectedIcon: false,
-              style: const ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ),
           _chip(
             icon: Icons.schedule_outlined,
             label: _deadline.date.isEmpty ? '截止' : '截止 ${_deadline.date}',
@@ -239,11 +213,6 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
             label: _location.text.isEmpty ? '地点' : _location.text,
             color: _location.highlight ? _hex(_location.color) : null,
             onTap: _pickLocation,
-          ),
-          _chip(
-            icon: Icons.account_tree_outlined,
-            label: _chainId == null ? '任务链' : '任务链✓',
-            onTap: _pickChain,
           ),
           _chip(
             icon: Icons.description_outlined,
@@ -285,22 +254,19 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
   }
 
   Widget _buildBody() {
-    if (_mode == TodoMode.plain) {
-      return Padding(
-        padding: const EdgeInsets.all(16),
-        child: TextField(
-          controller: _plainCtrl,
-          maxLines: null,
-          expands: true,
-          textAlignVertical: TextAlignVertical.top,
-          decoration: const InputDecoration(
-            hintText: '纯文本内容（类似 txt）…',
-            filled: false,
-          ),
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: TextField(
+        controller: _plainCtrl,
+        maxLines: null,
+        expands: true,
+        textAlignVertical: TextAlignVertical.top,
+        decoration: const InputDecoration(
+          hintText: '纯文本内容（类似 txt）…',
+          filled: false,
         ),
-      );
-    }
-    return RichTextEditor(controller: _richCtrl, placeholder: '富文本内容，可插入勾选列表…');
+      ),
+    );
   }
 
   Widget _buildAttachmentBar() {
@@ -560,53 +526,6 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
     );
   }
 
-  Future<void> _pickChain() async {
-    final chains = ref.read(taskChainListProvider).valueOrNull ?? [];
-    await showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(
-              title: Text(
-                '选择任务链',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            if (chains.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('暂无任务链，请先在「待办-任务链」中创建'),
-              ),
-            for (final c in chains)
-              ListTile(
-                leading: const Icon(Icons.account_tree_outlined),
-                title: Text(c.title.isEmpty ? '未命名任务链' : c.title),
-                subtitle: Text('进度 ${(c.progress * 100).toStringAsFixed(0)}%'),
-                trailing: c.id == _chainId
-                    ? const Icon(Icons.check, color: AppTheme.primary)
-                    : null,
-                onTap: () {
-                  setState(() => _chainId = c.id);
-                  Navigator.pop(ctx);
-                },
-              ),
-            if (_chainId != null)
-              ListTile(
-                leading: const Icon(Icons.close),
-                title: const Text('取消关联任务链'),
-                onTap: () {
-                  setState(() => _chainId = null);
-                  Navigator.pop(ctx);
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showMedia() {
     showModalBottomSheet(
       context: context,
@@ -640,14 +559,7 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
     if (t == null || !mounted) return;
     setState(() {
       if (_titleCtrl.text.trim().isEmpty) _titleCtrl.text = t.title;
-      _mode = t.mode;
-      if (t.mode == TodoMode.plain) {
-        if (_plainCtrl.text.trim().isEmpty) _plainCtrl.text = t.contentPlain;
-      } else {
-        if (_richCtrl.document.toPlainText().trim().isEmpty) {
-          _richCtrl.document = QuillCodec.decode(t.contentRich);
-        }
-      }
+      if (_plainCtrl.text.trim().isEmpty) _plainCtrl.text = t.contentPlain;
       if (_deadline.date.isEmpty) _deadline = t.deadline;
       if (_location.text.isEmpty) _location = t.location;
       for (final tag in t.tags) {

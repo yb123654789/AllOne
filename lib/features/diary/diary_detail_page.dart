@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:path/path.dart' as p;
@@ -12,7 +11,6 @@ import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
 import '../../core/utils/media_utils.dart';
 import '../../core/widgets/location_map_view.dart';
-import '../../core/widgets/rich_text_editor.dart';
 import '../../core/widgets/video_viewer.dart';
 import 'diary_edit_page.dart';
 import 'diary_models.dart';
@@ -183,24 +181,17 @@ class DiaryDetailPage extends ConsumerWidget {
   }
 
   Widget _content(BuildContext context, JsonStore? store) {
-    final doc = QuillCodec.decode(entry.contentDelta);
-    final controller = QuillController(
-      document: doc,
-      selection: const TextSelection.collapsed(offset: 0),
-    )..readOnly = true;
     return Container(
-      height: 420,
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.divider),
       ),
-      child: QuillEditor.basic(
-        controller: controller,
-        config: const QuillEditorConfig(
-          expands: true,
-          padding: EdgeInsets.all(12),
-        ),
+      child: SelectableText(
+        entry.plainText.isEmpty ? '（空）' : entry.plainText,
+        style: const TextStyle(fontSize: 15, height: 1.6),
       ),
     );
   }

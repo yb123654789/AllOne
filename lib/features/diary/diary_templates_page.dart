@@ -52,7 +52,6 @@ class DiaryTemplatesPage extends ConsumerWidget {
             DiaryTemplate(
               id: AppPaths.newId(),
               name: nameCtrl.text.trim(),
-              contentDelta: contentCtrl.text.trim(),
               plainText: contentCtrl.text.trim(),
               createdAt: DateTime.now(),
             ),

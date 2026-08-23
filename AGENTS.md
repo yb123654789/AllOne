@@ -11,7 +11,7 @@ AllOne —— 个人全功能生活管理 App（Flutter，本地存储优先）�
 ## 技术栈
 
 - Flutter 3.47（Dart 3.13）+ Riverpod 2.x（状态管理）
-- flutter_quill（富文本）、flutter_map（离线地图）、archive/share_plus（备份）、file_picker/record/audioplayers/video_player（附件）
+- flutter_map（离线地图）、archive/share_plus（备份）、file_picker/record/audioplayers/video_player（附件）
 
 ## 常用命令（智能体应直接运行）
 

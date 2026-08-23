@@ -6,12 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/backup/backup_service.dart';
+import '../../core/models/nav_settings.dart';
 import '../../core/storage/app_paths.dart';
+import '../../core/storage/nav_providers.dart';
 import '../../core/theme.dart';
 import '../diary/diary_templates_page.dart';
 import '../settings/settings_page.dart';
 import '../settings/text_exporter.dart';
-import '../todo/todo_chains_page.dart';
 import '../todo/todo_templates_page.dart';
 
 /// 工具中心：集中收纳「非直接使用」的辅助功能。
@@ -226,6 +227,42 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
       body: ListView(
         padding: const EdgeInsets.all(8),
         children: [
+          _sectionLabel('功能导航（快速切换）'),
+          Card(
+            child: Column(
+              children: [
+                for (var i = 0; i < kAppFeatures.length; i++) ...[
+                  if (i > 0) const Divider(height: 1),
+                  _featureTile(kAppFeatures[i]),
+                ],
+              ],
+            ),
+          ),
+          _sectionLabel('侧边栏显示设置'),
+          Card(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(
+                    '选择哪些功能显示在侧边栏 ☰ 中，减少拥挤（关闭后仍可从本页进入）',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ),
+                for (final f in kAppFeatures)
+                  SwitchListTile(
+                    dense: true,
+                    secondary: Icon(f.icon),
+                    title: Text(f.label),
+                    value: _isSidebarVisible(f.key),
+                    onChanged: (v) => _setSidebarVisible(f.key, v),
+                  ),
+              ],
+            ),
+          ),
           _sectionLabel('数据备份与迁移'),
           Card(
             child: Column(
@@ -320,16 +357,6 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
                     MaterialPageRoute(builder: (_) => const TodoTemplatesPage()),
                   ),
                 ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.account_tree_outlined, color: AppTheme.primary),
-                  title: const Text('任务链'),
-                  subtitle: const Text('抽箱式长期任务，拆分子任务逐步完成'),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const TodoChainsPage()),
-                  ),
-                ),
               ],
             ),
           ),
@@ -365,4 +392,34 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
       style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
     ),
   );
+
+  /// 功能导航入口：点击切换底部导航 tab
+  Widget _featureTile(AppFeature f) {
+    final current = ref.watch(homeTabIndexProvider);
+    final active = current == kAppFeatures.indexOf(f);
+    return ListTile(
+      leading: Icon(active ? f.selectedIcon : f.icon, color: active ? AppTheme.primary : null),
+      title: Text(
+        f.label,
+        style: active ? const TextStyle(color: AppTheme.primary) : null,
+      ),
+      subtitle: Text(
+        f.key == 'tools' ? '当前页（备份 / 模板 / 设置等）' : '切换到「${f.label}」主界面',
+      ),
+      trailing: active
+          ? const Icon(Icons.check, color: AppTheme.primary, size: 18)
+          : null,
+      onTap: () =>
+          ref.read(homeTabIndexProvider.notifier).state = kAppFeatures.indexOf(f),
+    );
+  }
+
+  bool _isSidebarVisible(String key) {
+    final nav = ref.watch(navSettingsProvider).valueOrNull ?? const NavSettings();
+    return nav.isSidebarVisible(key);
+  }
+
+  void _setSidebarVisible(String key, bool v) {
+    ref.read(navSettingsProvider.notifier).setSidebarVisible(key, v);
+  }
 }

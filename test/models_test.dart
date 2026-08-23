@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:allone/core/models/common.dart';
-import 'package:allone/core/widgets/rich_text_editor.dart';
 import 'package:allone/features/diary/diary_models.dart';
 import 'package:allone/features/todo/todo_models.dart';
 import 'package:allone/features/habit/habit_models.dart';
@@ -51,7 +50,6 @@ void main() {
       final e = DiaryEntry(
         id: 'id1',
         title: '标题',
-        contentDelta: '[]',
         plainText: '正文',
         createdAt: DateTime(2026, 8, 20),
         updatedAt: DateTime(2026, 8, 20, 1),
@@ -68,22 +66,7 @@ void main() {
       expect(restored.tags, ['生活']);
       expect(restored.media.length, 1);
       expect(restored.media.first.type, MediaType.audio);
-      expect(restored.mode, DiaryMode.rich);
-    });
-
-    test('DiaryEntry 纯文本模式 JSON 往返', () {
-      final e = DiaryEntry(
-        id: 'id2',
-        mode: DiaryMode.plain,
-        contentDelta: '',
-        plainText: '纯文本正文',
-        createdAt: DateTime(2026, 8, 20),
-        updatedAt: DateTime(2026, 8, 20),
-      );
-      final restored = DiaryEntry.fromJson(e.toJson());
-      expect(restored.mode, DiaryMode.plain);
-      expect(restored.plainText, '纯文本正文');
-      expect(restored.contentDelta, '');
+      expect(restored.plainText, '正文');
     });
   });
 
@@ -92,7 +75,7 @@ void main() {
       final t = TodoItem(
         id: 't1',
         title: '任务',
-        mode: TodoMode.rich,
+        contentPlain: '任务内容',
         deadline: const DeadlineInfo(
           date: '2026-08-25',
           time: '18:00',
@@ -109,21 +92,69 @@ void main() {
       expect(restored.deadline.highlight, true);
       expect(restored.location.text, '图书馆');
       expect(restored.status, TodoStatus.pending);
+      expect(restored.contentPlain, '任务内容');
     });
 
-    test('TaskChain 进度计算', () {
-      final c = TaskChain(
-        id: 'c1',
-        title: '学习',
-        subTasks: const [
-          ChainSubTask(id: 's1', title: 'a', done: true),
-          ChainSubTask(id: 's2', title: 'b', done: false),
-          ChainSubTask(id: 's3', title: 'c', done: true),
+    test('TodoItem 树形 JSON 往返（含子任务嵌套）', () {
+      final t = TodoItem(
+        id: 't1',
+        title: '任务链',
+        contentPlain: '顶层内容',
+        status: TodoStatus.pending,
+        children: [
+          TodoItem(
+            id: 't1-c1',
+            title: '子任务 1',
+            contentPlain: '子内容',
+            deadline: const DeadlineInfo(date: '2026-08-26'),
+            status: TodoStatus.pending,
+            children: [
+              TodoItem(
+                id: 't1-c1-g1',
+                title: '孙任务',
+                status: TodoStatus.done,
+                createdAt: DateTime(2026, 8, 20),
+                updatedAt: DateTime(2026, 8, 20),
+              ),
+            ],
+            createdAt: DateTime(2026, 8, 20),
+            updatedAt: DateTime(2026, 8, 20),
+          ),
+          TodoItem(
+            id: 't1-c2',
+            title: '子任务 2（完成）',
+            status: TodoStatus.done,
+            createdAt: DateTime(2026, 8, 20),
+            updatedAt: DateTime(2026, 8, 20),
+          ),
         ],
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: DateTime(2026, 8, 20),
+        updatedAt: DateTime(2026, 8, 20),
       );
-      expect(c.progress, closeTo(2 / 3, 0.0001));
+      final restored = TodoItem.fromJson(t.toJson());
+      expect(restored.title, '任务链');
+      expect(restored.hasChildren, true);
+      expect(restored.children.length, 2);
+      expect(restored.children[0].children.length, 1);
+      expect(restored.children[0].children[0].title, '孙任务');
+      expect(restored.children[0].children[0].status, TodoStatus.done);
+      // 进度：直接子任务 2 个中完成 1 个
+      expect(restored.progress, closeTo(1 / 2, 0.0001));
+    });
+
+    test('TodoItem 无子任务为普通待办', () {
+      final t = TodoItem(
+        id: 't2',
+        title: '普通待办',
+        contentPlain: '任务内容',
+        createdAt: DateTime(2026, 8, 20),
+        updatedAt: DateTime(2026, 8, 20),
+      );
+      expect(t.hasChildren, false);
+      expect(t.progress, 0);
+      final restored = TodoItem.fromJson(t.toJson());
+      expect(restored.hasChildren, false);
+      expect(restored.contentPlain, '任务内容');
     });
 
     test('TodoTemplate JSON 往返', () {
@@ -131,9 +162,7 @@ void main() {
         id: 'tp1',
         name: '周报',
         title: '周报',
-        mode: TodoMode.rich,
         contentPlain: '周报内容',
-        contentRich: '[]',
         deadline: const DeadlineInfo(
           date: '2026-08-28',
           time: '18:00',
@@ -147,7 +176,6 @@ void main() {
       );
       final restored = TodoTemplate.fromJson(t.toJson());
       expect(restored.name, '周报');
-      expect(restored.mode, TodoMode.rich);
       expect(restored.deadline.date, '2026-08-28');
       expect(restored.deadline.highlight, true);
       expect(restored.location.text, '办公室');
@@ -169,6 +197,7 @@ void main() {
       final restored = Habit.fromJson(h.toJson());
       expect(restored.target.type, HabitType.duration);
       expect(restored.target.value, 30);
+      expect(restored.description, '每天读 30 分钟');
     });
 
     test('CheckinMap 连续打卡统计', () {
@@ -179,13 +208,6 @@ void main() {
       });
       expect(cm.totalDays, 3);
       expect(cm.streakDays(DateTime(2026, 8, 20)), 3);
-    });
-  });
-
-  group('富文本编解码', () {
-    test('QuillCodec 空字符串返回空文档', () {
-      final doc = QuillCodec.decode('');
-      expect(doc.toPlainText().trim(), isEmpty);
     });
   });
 

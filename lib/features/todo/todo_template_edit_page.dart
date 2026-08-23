@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/common.dart';
 import '../../core/storage/app_paths.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/location_map_picker.dart';
-import '../../core/widgets/rich_text_editor.dart';
 import 'todo_models.dart';
 import 'todo_repository.dart';
 
@@ -26,11 +24,9 @@ class _TodoTemplateEditPageState extends ConsumerState<TodoTemplateEditPage> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _titleCtrl;
   late final TextEditingController _plainCtrl;
-  late final QuillController _richCtrl;
   final List<String> _tags = [];
   late final TextEditingController _tagInput;
 
-  TodoMode _mode = TodoMode.plain;
   DeadlineInfo _deadline = const DeadlineInfo();
   LocationInfo _location = const LocationInfo();
 
@@ -42,13 +38,8 @@ class _TodoTemplateEditPageState extends ConsumerState<TodoTemplateEditPage> {
     _nameCtrl = TextEditingController(text: t?.name ?? '');
     _titleCtrl = TextEditingController(text: t?.title ?? '');
     _plainCtrl = TextEditingController(text: t?.contentPlain ?? '');
-    _richCtrl = QuillController(
-      document: QuillCodec.decode(t?.contentRich ?? ''),
-      selection: const TextSelection.collapsed(offset: 0),
-    );
     _tagInput = TextEditingController();
     if (t != null) {
-      _mode = t.mode;
       _deadline = t.deadline;
       _location = t.location;
       _tags.addAll(t.tags);
@@ -60,7 +51,6 @@ class _TodoTemplateEditPageState extends ConsumerState<TodoTemplateEditPage> {
     _nameCtrl.dispose();
     _titleCtrl.dispose();
     _plainCtrl.dispose();
-    _richCtrl.dispose();
     _tagInput.dispose();
     super.dispose();
   }
@@ -78,13 +68,7 @@ class _TodoTemplateEditPageState extends ConsumerState<TodoTemplateEditPage> {
       id: _id,
       name: _nameCtrl.text.trim(),
       title: _titleCtrl.text.trim(),
-      mode: _mode,
-      contentPlain: _mode == TodoMode.plain
-          ? _plainCtrl.text
-          : _richCtrl.document.toPlainText(),
-      contentRich: _mode == TodoMode.rich
-          ? QuillCodec.encode(_richCtrl.document)
-          : '',
+      contentPlain: _plainCtrl.text,
       deadline: _deadline,
       location: _location,
       tags: List.of(_tags),
@@ -134,42 +118,13 @@ class _TodoTemplateEditPageState extends ConsumerState<TodoTemplateEditPage> {
                   decoration: const InputDecoration(labelText: '待办标题预设（可留空）'),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    const Text('内容模式：', style: TextStyle(fontSize: 13)),
-                    const SizedBox(width: 8),
-                    SegmentedButton<TodoMode>(
-                      segments: const [
-                        ButtonSegment(
-                          value: TodoMode.plain,
-                          label: Text('纯文本'),
-                        ),
-                        ButtonSegment(value: TodoMode.rich, label: Text('富文本')),
-                      ],
-                      selected: {_mode},
-                      onSelectionChanged: (s) =>
-                          setState(() => _mode = s.first),
-                      showSelectedIcon: false,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (_mode == TodoMode.plain)
-                  TextField(
-                    controller: _plainCtrl,
-                    maxLines: 5,
-                    decoration: const InputDecoration(
-                      hintText: '模板内容（纯文本，类似 txt）…',
-                    ),
-                  )
-                else
-                  SizedBox(
-                    height: 220,
-                    child: RichTextEditor(
-                      controller: _richCtrl,
-                      placeholder: '模板内容（富文本，可含勾选列表）…',
-                    ),
+                TextField(
+                  controller: _plainCtrl,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    hintText: '模板内容（纯文本，类似 txt）…',
                   ),
+                ),
                 const SizedBox(height: 12),
                 _optionTile(
                   icon: Icons.schedule_outlined,
