@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/nav_settings.dart';
 import 'storage_providers.dart';
 
-/// 当前底部导航选中的**功能 key**（全局，供工具页 / 侧边栏跳转使用）。
+/// 当前底部导航选中的**功能 key**（全局，供工具页跳转使用）。
 /// 用 key 而非索引，避免隐藏部分功能后索引错乱。
 final homeTabProvider = StateProvider<String>((ref) => 'diary');
 
@@ -33,32 +33,10 @@ class NavSettingsNotifier extends AsyncNotifier<NavSettings> {
     final json = await store.read(_path);
     final map = _readVisible(json, 'bottomBarVisible');
     map[key] = visible;
-    final current = state.valueOrNull ?? const NavSettings();
-    final nav = NavSettings(
-      bottomBarVisible: map,
-      sidebarVisible: current.sidebarVisible,
-    );
+    final nav = NavSettings(bottomBarVisible: map);
     await store.write(_path, nav.toJson());
     // 立即更新内存 state（而非仅 invalidateSelf），
     // 避免 AsyncLoading 阶段 valueOrNull 为 null 导致导航回退显示全部。
-    state = AsyncData(nav);
-  }
-
-  /// 设置某个功能是否显示在侧边栏
-  Future<void> setSidebarVisible(String key, bool visible) async {
-    final store = await ref.read(jsonStoreProvider.future);
-    // 直接从磁盘读取当前配置作为基线（避免 AsyncLoading 时丢失其他项）
-    final json = await store.read(_path);
-    final map = _readVisible(json, 'sidebarVisible');
-    map[key] = visible;
-    final current = state.valueOrNull ?? const NavSettings();
-    final nav = NavSettings(
-      bottomBarVisible: current.bottomBarVisible,
-      sidebarVisible: map,
-    );
-    await store.write(_path, nav.toJson());
-    // 立即更新内存 state（而非仅 invalidateSelf），
-    // 避免 AsyncLoading 阶段 valueOrNull 为 null 导致侧边栏回退显示全部。
     state = AsyncData(nav);
   }
 }

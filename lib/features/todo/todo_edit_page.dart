@@ -335,11 +335,13 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
   // —— 设置对话框 ——
 
   Future<void> _pickDeadline() async {
+    // 声明在 StatefulBuilder 之外，避免每次重建时把 d 重置回 _deadline，
+    // 否则选好的日期 / 时间会在 setState 重建时丢失。
+    var d = _deadline;
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) {
-          var d = _deadline;
           DateTime? date = d.date.isEmpty ? null : DateTime.tryParse(d.date);
           return AlertDialog(
             title: const Text('截止时间'),

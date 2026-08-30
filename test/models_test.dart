@@ -184,20 +184,81 @@ void main() {
   });
 
   group('习惯模型', () {
-    test('Habit JSON 往返', () {
+    test('Habit JSON 往返（含三维度）', () {
       final h = Habit(
         id: 'h1',
         title: '阅读',
         category: '学习',
-        target: const HabitTarget(type: HabitType.duration, value: 30),
+        frequency: HabitFrequency.weekly,
+        weekdays: [1, 3, 5],
+        dailyTarget: HabitDailyTarget.minutes,
+        dailyTargetValue: 30,
+        persistence: HabitPersistence.days,
+        persistenceValue: 21,
         description: '每天读 30 分钟',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
       final restored = Habit.fromJson(h.toJson());
-      expect(restored.target.type, HabitType.duration);
-      expect(restored.target.value, 30);
+      expect(restored.frequency, HabitFrequency.weekly);
+      expect(restored.weekdays, [1, 3, 5]);
+      expect(restored.dailyTarget, HabitDailyTarget.minutes);
+      expect(restored.dailyTargetValue, 30);
+      expect(restored.persistence, HabitPersistence.days);
+      expect(restored.persistenceValue, 21);
       expect(restored.description, '每天读 30 分钟');
+    });
+
+    test('旧数据兼容：target(天数) 迁移为坚持 days', () {
+      final h = Habit.fromJson({
+        'id': 'old1',
+        'title': '旧习惯',
+        'category': '通用',
+        'target': {'type': 'duration', 'value': 30},
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      expect(h.persistence, HabitPersistence.days);
+      expect(h.persistenceValue, 30);
+      // 未写新字段时使用默认值
+      expect(h.frequency, HabitFrequency.daily);
+      expect(h.dailyTarget, HabitDailyTarget.once);
+    });
+
+    test('旧数据兼容：target(次数) 迁移为坚持 times', () {
+      final h = Habit.fromJson({
+        'id': 'old2',
+        'title': '旧习惯',
+        'category': '通用',
+        'target': {'type': 'count', 'value': 100},
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      expect(h.persistence, HabitPersistence.times);
+      expect(h.persistenceValue, 100);
+    });
+
+    test('Habit archived 字段 JSON 往返与默认值', () {
+      // 默认未归档
+      final def = Habit(
+        id: 'h1',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      expect(def.archived, isFalse);
+      // 往返保留
+      final archived = def.copyWith(archived: true);
+      final restored = Habit.fromJson(archived.toJson());
+      expect(restored.archived, isTrue);
+      // 旧数据无 archived 字段时默认 false（不失效）
+      final legacy = Habit.fromJson({
+        'id': 'old3',
+        'title': '旧习惯',
+        'category': '通用',
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      expect(legacy.archived, isFalse);
     });
 
     test('CheckinMap 连续打卡统计', () {
@@ -208,6 +269,36 @@ void main() {
       });
       expect(cm.totalDays, 3);
       expect(cm.streakDays(DateTime(2026, 8, 20)), 3);
+    });
+
+    test('CheckinMap dayMet 按当天目标判定', () {
+      // 定量：每天需累计 8
+      final q = CheckinMap.fromJson({'2026-08-18': 5, '2026-08-19': 8});
+      expect(q.dayMet('2026-08-18', HabitDailyTarget.quantity, 8), isFalse);
+      expect(q.dayMet('2026-08-19', HabitDailyTarget.quantity, 8), isTrue);
+      // 时长：每天需累计 30 分钟
+      final m = CheckinMap.fromJson({'2026-08-18': 30});
+      expect(m.dayMet('2026-08-18', HabitDailyTarget.minutes, 30), isTrue);
+      expect(m.dayMet('2026-08-18', HabitDailyTarget.minutes, 60), isFalse);
+      // 一次即完成
+      final o = CheckinMap.fromJson({'2026-08-18': 1});
+      expect(o.dayMet('2026-08-18', HabitDailyTarget.once, 1), isTrue);
+    });
+
+    test('CheckinMap 失败打卡不计入完成与连续', () {
+      final cm = CheckinMap.fromJson({
+        '2026-08-18': 1,
+        '2026-08-19': -1, // 失败
+        '2026-08-20': 1,
+      });
+      expect(cm.totalCount, 2); // 排除失败
+      expect(cm.totalDays, 2); // 排除失败
+      expect(cm.failedDays, 1);
+      expect(cm.isDone('2026-08-18'), isTrue);
+      expect(cm.isFailed('2026-08-19'), isTrue);
+      expect(cm.hasRecord('2026-08-19'), isTrue);
+      // 19 号失败会中断连续，从 20 号往前只有 20 号本身算 1 天
+      expect(cm.streakDays(DateTime(2026, 8, 20)), 1);
     });
   });
 

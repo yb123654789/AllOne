@@ -1,9 +1,6 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
 
-import 'core/backup/backup_service.dart';
 import 'core/models/nav_settings.dart';
 import 'core/storage/nav_providers.dart';
 import 'core/theme.dart';
@@ -12,7 +9,6 @@ import 'features/diary/diary_page.dart';
 import 'features/habit/habit_page.dart';
 import 'features/ledger/ledger_page.dart';
 import 'features/schedule/schedule_page.dart';
-import 'features/settings/settings_page.dart';
 import 'features/todo/todo_page.dart';
 import 'features/tools/tools_page.dart';
 
@@ -54,16 +50,24 @@ class HomeShell extends ConsumerWidget {
     // 防止全部隐藏导致空导航
     if (visible.isEmpty) visible = List.of(kAppFeatures);
     final currentKey = ref.watch(homeTabProvider);
-    final index = visible.indexWhere((f) => f.key == currentKey);
-    final safeIndex = index < 0 ? 0 : index;
+
+    // IndexedStack 始终包含全部功能页面，保证工具页「功能导航」能切换到任何功能，
+    // 即使该功能已从底部导航栏隐藏（隐藏只影响底边栏自身）。
+    final bodyIndex = kAppFeatures.indexWhere((f) => f.key == currentKey);
+    final safeBodyIndex = bodyIndex < 0 ? 0 : bodyIndex;
     final children = [
-      for (final f in visible) _pages[f.key] ?? const SizedBox.shrink(),
+      for (final f in kAppFeatures) _pages[f.key] ?? const SizedBox.shrink(),
     ];
+
+    // 底边栏只展示可见功能；当前功能被隐藏时（通过工具页功能导航切过来），
+    // 底边栏没有对应项，选中项回退到第一个可见功能。
+    final barIndex = visible.indexWhere((f) => f.key == currentKey);
+    final safeBarIndex = barIndex < 0 ? 0 : barIndex;
+
     return Scaffold(
-      body: IndexedStack(index: safeIndex, children: children),
-      drawer: const AppDrawer(),
+      body: IndexedStack(index: safeBodyIndex, children: children),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: safeIndex,
+        selectedIndex: safeBarIndex,
         onDestinationSelected: (i) =>
             ref.read(homeTabProvider.notifier).state = visible[i].key,
         destinations: [
@@ -76,171 +80,5 @@ class HomeShell extends ConsumerWidget {
         ],
       ),
     );
-  }
-}
-
-/// 侧边栏：功能快捷入口（可按配置隐藏）+ 一键导出/导入 + 设置。
-class AppDrawer extends ConsumerStatefulWidget {
-  const AppDrawer({super.key});
-
-  @override
-  ConsumerState<AppDrawer> createState() => _AppDrawerState();
-}
-
-class _AppDrawerState extends ConsumerState<AppDrawer> {
-  bool _busy = false;
-
-  /// 一键导出：打包全部数据为 zip 并分享（可存 U 盘）
-  Future<void> _export() async {
-    setState(() => _busy = true);
-    try {
-      final zipPath = await BackupService.exportBackup();
-      await Share.shareXFiles([XFile(zipPath)], text: 'AllOne 数据备份（U 盘手动备份用）');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导出失败：$e')));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  /// 一键导入：选择备份 zip 并恢复
-  Future<void> _import() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['zip'],
-    );
-    final path = result?.files.single.path;
-    if (path == null || !mounted) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('导入备份'),
-        content: const Text('导入将覆盖当前所有数据，且不可撤销。确定继续吗？\n\n建议先导出一份当前备份。'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
-            child: const Text('导入并覆盖'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    setState(() => _busy = true);
-    try {
-      await BackupService.restoreFromZip(path);
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('导入成功，请重启应用以刷新数据')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导入失败：$e')));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          const DrawerHeader(
-            decoration: BoxDecoration(color: AppTheme.primary),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  'AllOne',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '日记 · 待办 · 习惯 · 课程 · 记账 · 日历',
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Text('功能',
-                style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-          ),
-          ..._sidebarFeatureTiles(),
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text('数据（一键备份 / 迁移）',
-                style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-          ),
-          ListTile(
-            leading: const Icon(Icons.save_alt, color: Colors.green),
-            title: const Text('一键导出'),
-            subtitle: const Text('打包全部数据为 zip，可存 U 盘 / 分享'),
-            enabled: !_busy,
-            onTap: _export,
-          ),
-          ListTile(
-            leading: const Icon(Icons.file_download_outlined, color: AppTheme.primary),
-            title: const Text('从备份导入'),
-            subtitle: const Text('选择之前导出的 zip，恢复数据'),
-            enabled: !_busy,
-            onTap: _import,
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.tune, color: AppTheme.primary),
-            title: const Text('设置 / 侧边栏管理'),
-            subtitle: const Text('选择哪些功能显示在侧边栏'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsPage()),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 侧边栏的功能入口（按 [NavSettings] 过滤显示）；点击跳转到对应 tab。
-  List<Widget> _sidebarFeatureTiles() {
-    final nav = ref.watch(navSettingsProvider).valueOrNull ?? const NavSettings();
-    final current = ref.watch(homeTabProvider);
-    return [
-      for (final f in kAppFeatures)
-        if (nav.isSidebarVisible(f.key))
-          ListTile(
-            leading: Icon(
-              current == f.key ? f.selectedIcon : f.icon,
-              color: current == f.key ? AppTheme.primary : null,
-            ),
-            title: Text(
-              f.label,
-              style: current == f.key
-                  ? const TextStyle(color: AppTheme.primary)
-                  : null,
-            ),
-            selected: current == f.key,
-            onTap: () {
-              Navigator.pop(context);
-              ref.read(homeTabProvider.notifier).state = f.key;
-            },
-          ),
-    ];
   }
 }

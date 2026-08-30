@@ -47,3 +47,13 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// ML Kit 文本识别的语言模块默认是 compileOnly（仅编译期），不会打进 APK，
+// 导致 release 构建 R8 报 Missing class。这里用 implementation 显式
+// 打包各语言识别模块，保证 TextRecognitionScript 各选项可用。
+dependencies {
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-devanagari:16.0.1")
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+}

@@ -167,13 +167,6 @@ class _TodoPageState extends ConsumerState<TodoPage> {
               _subtreeMatchTodo(e, _query, _filterTags),
         )
         .toList();
-    final done = items
-        .where(
-          (e) =>
-              e.status == TodoStatus.done &&
-              _subtreeMatchTodo(e, _query, _filterTags),
-        )
-        .toList();
     return ListView(
       padding: const EdgeInsets.only(bottom: 88),
       children: [
@@ -182,24 +175,13 @@ class _TodoPageState extends ConsumerState<TodoPage> {
           for (final e in pending)
             _TodoNode(item: e, depth: 0, query: _query, tags: _filterTags),
         ],
-        if (done.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text(
-              '已完成',
-              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-            ),
-          ),
-          for (final e in done)
-            _TodoNode(item: e, depth: 0, query: _query, tags: _filterTags),
-        ],
-        if (pending.isEmpty && done.isEmpty)
+        if (pending.isEmpty)
           Padding(
             padding: const EdgeInsets.all(40),
             child: Center(
               child: Text(
                 _filterTags.isEmpty && _query.trim().isEmpty
-                    ? '没有待办'
+                    ? '没有待办（已完成项已移到回收站）'
                     : '没有匹配的待办（请调整关键词或筛选标签）',
                 style: const TextStyle(color: AppTheme.textSecondary),
               ),
@@ -371,7 +353,8 @@ class _TodoNodeState extends ConsumerState<_TodoNode> {
   @override
   void initState() {
     super.initState();
-    _expanded = widget.item.hasChildren && widget.depth < 1;
+    // 任务链（含子任务的待办）默认收起，避免一打开就显示长长一列子任务。
+    _expanded = false;
   }
 
   void _toggleExpand() => setState(() => _expanded = !_expanded);

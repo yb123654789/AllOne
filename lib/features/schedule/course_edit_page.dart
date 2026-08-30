@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/storage/app_paths.dart';
 import '../../core/theme.dart';
+import 'course_ocr.dart';
+import 'course_ocr_page.dart';
 import 'schedule_models.dart';
 import 'schedule_repository.dart';
 
@@ -79,6 +81,31 @@ class _CourseEditPageState extends ConsumerState<CourseEditPage> {
     if (mounted) Navigator.pop(context);
   }
 
+  /// 从照片识别课程信息，结果回填到表单（仅 Android / iOS）。
+  Future<void> _pickFromImage() async {
+    final result = await Navigator.push<CourseOcrResult>(
+      context,
+      MaterialPageRoute(builder: (_) => const CourseOcrPage()),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      if (result.name.isNotEmpty) _nameCtrl.text = result.name;
+      if (result.teacher.isNotEmpty) _teacherCtrl.text = result.teacher;
+      if (result.classroom.isNotEmpty) _roomCtrl.text = result.classroom;
+      if (result.weekday != null) _weekday = result.weekday!;
+      if (result.startTime.isNotEmpty) _startCtrl.text = result.startTime;
+      if (result.endTime.isNotEmpty) _endCtrl.text = result.endTime;
+      if (result.weeks.isNotEmpty) _weeksCtrl.text = result.weeks;
+      // 课程说明填入识别原文，供参考
+      if (result.rawText.isNotEmpty) _notesCtrl.text = result.rawText;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已填入识别结果，请核对后再保存')),
+      );
+    }
+  }
+
   Future<void> _pickTime(TextEditingController ctrl) async {
     final parts = ctrl.text.split(':');
     final t = await showTimePicker(
@@ -125,6 +152,19 @@ class _CourseEditPageState extends ConsumerState<CourseEditPage> {
             ],
             onChanged: (v) => _termId = v ?? '',
           ),
+          if (isOcrSupported()) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _pickFromImage,
+              icon: const Icon(Icons.photo_camera_outlined),
+              label: const Text('📷 从照片识别课程信息'),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '拍照 / 选图自动识别课程名、教室、时间等（本地识别，仅安卓 / iOS）',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ],
           const SizedBox(height: 12),
           TextField(
             controller: _nameCtrl,

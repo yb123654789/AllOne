@@ -30,9 +30,22 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
   late final TextEditingController _titleCtrl;
   late final TextEditingController _categoryCtrl;
   late final TextEditingController _descCtrl;
-  late final TextEditingController _targetCtrl;
+  late final TextEditingController _dailyTargetCtrl;
+  late final TextEditingController _persistenceCtrl;
   late final TextEditingController _tagInput;
-  HabitType _type = HabitType.count;
+
+  // 频率
+  HabitFrequency _frequency = HabitFrequency.daily;
+  final Set<int> _weekdays = {}; // 1-7
+  late final TextEditingController _intervalDaysCtrl;
+  late final TextEditingController _weeklyTimesCtrl;
+
+  // 当天目标
+  HabitDailyTarget _dailyTarget = HabitDailyTarget.once;
+
+  // 坚持周期
+  HabitPersistence _persistence = HabitPersistence.unlimited;
+
   final List<MediaAttachment> _media = [];
   final List<String> _tags = [];
 
@@ -44,11 +57,24 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
     _titleCtrl = TextEditingController(text: h?.title ?? '');
     _categoryCtrl = TextEditingController(text: h?.category ?? '通用');
     _descCtrl = TextEditingController(text: h?.description ?? '');
-    _targetCtrl = TextEditingController(
-      text: (h?.target.value ?? 30).toString(),
+    _dailyTargetCtrl = TextEditingController(
+      text: (h?.dailyTargetValue ?? 1).toString(),
+    );
+    _persistenceCtrl = TextEditingController(
+      text: (h?.persistenceValue ?? 21).toString(),
+    );
+    _intervalDaysCtrl = TextEditingController(
+      text: (h?.intervalDays ?? 3).toString(),
+    );
+    _weeklyTimesCtrl = TextEditingController(
+      text: (h?.weeklyTimes ?? 3).toString(),
     );
     _tagInput = TextEditingController();
-    _type = h?.target.type ?? HabitType.count;
+
+    _frequency = h?.frequency ?? HabitFrequency.daily;
+    _weekdays.addAll(h?.weekdays ?? const []);
+    _dailyTarget = h?.dailyTarget ?? HabitDailyTarget.once;
+    _persistence = h?.persistence ?? HabitPersistence.unlimited;
     if (h != null) {
       _media.addAll(h.media);
       _tags.addAll(h.tags);
@@ -60,7 +86,10 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
     _titleCtrl.dispose();
     _categoryCtrl.dispose();
     _descCtrl.dispose();
-    _targetCtrl.dispose();
+    _dailyTargetCtrl.dispose();
+    _persistenceCtrl.dispose();
+    _intervalDaysCtrl.dispose();
+    _weeklyTimesCtrl.dispose();
     _tagInput.dispose();
     super.dispose();
   }
@@ -73,10 +102,14 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
       category: _categoryCtrl.text.trim().isEmpty
           ? '通用'
           : _categoryCtrl.text.trim(),
-      target: HabitTarget(
-        type: _type,
-        value: int.tryParse(_targetCtrl.text.trim()) ?? 30,
-      ),
+      frequency: _frequency,
+      weekdays: _weekdays.toList()..sort(),
+      intervalDays: int.tryParse(_intervalDaysCtrl.text.trim()) ?? 1,
+      weeklyTimes: int.tryParse(_weeklyTimesCtrl.text.trim()) ?? 1,
+      dailyTarget: _dailyTarget,
+      dailyTargetValue: int.tryParse(_dailyTargetCtrl.text.trim()) ?? 1,
+      persistence: _persistence,
+      persistenceValue: int.tryParse(_persistenceCtrl.text.trim()) ?? 0,
       description: _descCtrl.text.trim(),
       media: List.of(_media),
       tags: List.of(_tags),
@@ -187,6 +220,189 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
     if (result != null) setState(() => _tags..clear()..addAll(result));
   }
 
+  /// —— 频率配置区 ——
+  Widget _frequencySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('打卡频率'),
+        const SizedBox(height: 6),
+        SegmentedButton<HabitFrequency>(
+          segments: const [
+            ButtonSegment(value: HabitFrequency.daily, label: Text('每天')),
+            ButtonSegment(value: HabitFrequency.weekly, label: Text('每周几天')),
+            ButtonSegment(value: HabitFrequency.interval, label: Text('每 N 天')),
+            ButtonSegment(
+              value: HabitFrequency.weeklyTimes,
+              label: Text('每周 N 次'),
+            ),
+          ],
+          selected: {_frequency},
+          onSelectionChanged: (s) => setState(() => _frequency = s.first),
+          showSelectedIcon: false,
+        ),
+        const SizedBox(height: 8),
+        if (_frequency == HabitFrequency.weekly)
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (var d = 1; d <= 7; d++)
+                FilterChip(
+                  label: Text(_weekdayName(d)),
+                  selected: _weekdays.contains(d),
+                  onSelected: (v) => setState(() {
+                    if (v) {
+                      _weekdays.add(d);
+                    } else {
+                      _weekdays.remove(d);
+                    }
+                  }),
+                ),
+            ],
+          ),
+        if (_frequency == HabitFrequency.interval)
+          TextField(
+            controller: _intervalDaysCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '每隔多少天打卡一次（如：3）',
+            ),
+          ),
+        if (_frequency == HabitFrequency.weeklyTimes)
+          TextField(
+            controller: _weeklyTimesCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '每周累计打卡多少次（如：3）',
+            ),
+          ),
+        if (_frequency == HabitFrequency.daily)
+          const Text(
+            '每天都可以打卡。',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
+      ],
+    );
+  }
+
+  /// —— 当天目标配置区 ——
+  Widget _dailyTargetSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('当天目标（一天完成多少算完成当天）'),
+        const SizedBox(height: 6),
+        SegmentedButton<HabitDailyTarget>(
+          segments: const [
+            ButtonSegment(value: HabitDailyTarget.once, label: Text('一次即完成')),
+            ButtonSegment(value: HabitDailyTarget.quantity, label: Text('定量')),
+            ButtonSegment(value: HabitDailyTarget.minutes, label: Text('时长')),
+          ],
+          selected: {_dailyTarget},
+          onSelectionChanged: (s) => setState(() => _dailyTarget = s.first),
+          showSelectedIcon: false,
+        ),
+        const SizedBox(height: 8),
+        if (_dailyTarget == HabitDailyTarget.quantity)
+          TextField(
+            controller: _dailyTargetCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '每天需累计多少次 / 多少量（如：8）',
+            ),
+          ),
+        if (_dailyTarget == HabitDailyTarget.minutes)
+          TextField(
+            controller: _dailyTargetCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '每天需累计多少分钟（如：30）',
+            ),
+          ),
+        if (_dailyTarget == HabitDailyTarget.once)
+          const Text(
+            '当天打一次卡即算完成。',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
+      ],
+    );
+  }
+
+  /// —— 坚持周期配置区 ——
+  Widget _persistenceSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('坚持周期（习惯存在的窗口）'),
+        const SizedBox(height: 6),
+        SegmentedButton<HabitPersistence>(
+          segments: const [
+            ButtonSegment(
+              value: HabitPersistence.unlimited,
+              label: Text('不限'),
+            ),
+            ButtonSegment(
+              value: HabitPersistence.days,
+              label: Text('坚持 N 天'),
+            ),
+            ButtonSegment(
+              value: HabitPersistence.times,
+              label: Text('累计 N 次'),
+            ),
+            ButtonSegment(
+              value: HabitPersistence.cycles,
+              label: Text('循环周期'),
+            ),
+          ],
+          selected: {_persistence},
+          onSelectionChanged: (s) => setState(() => _persistence = s.first),
+          showSelectedIcon: false,
+        ),
+        const SizedBox(height: 8),
+        if (_persistence == HabitPersistence.days)
+          TextField(
+            controller: _persistenceCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '坚持多少天（如：21）',
+            ),
+          ),
+        if (_persistence == HabitPersistence.times)
+          TextField(
+            controller: _persistenceCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '累计打卡多少次（如：100）',
+            ),
+          ),
+        if (_persistence == HabitPersistence.cycles)
+          TextField(
+            controller: _persistenceCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '每轮多少天（如：21），完成后自动开始下一轮',
+            ),
+          ),
+        if (_persistence == HabitPersistence.unlimited)
+          const Text(
+            '不设结束，一直存在。',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
+      ],
+    );
+  }
+
+  Widget _sectionTitle(String text) => Text(
+    text,
+    style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+  );
+
+  String _weekdayName(int d) {
+    const names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    return (d >= 1 && d <= 7) ? names[d - 1] : '?';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -213,35 +429,12 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
             decoration: const InputDecoration(labelText: '分类（如：学习 / 健康 / 生活）'),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: SegmentedButton<HabitType>(
-                  segments: const [
-                    ButtonSegment(value: HabitType.count, label: Text('按次数')),
-                    ButtonSegment(
-                      value: HabitType.duration,
-                      label: Text('按天数'),
-                    ),
-                  ],
-                  selected: {_type},
-                  onSelectionChanged: (s) => setState(() => _type = s.first),
-                  showSelectedIcon: false,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _targetCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: _type == HabitType.count ? '目标次数' : '目标天数',
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+          _frequencySection(),
+          const SizedBox(height: 16),
+          _dailyTargetSection(),
+          const SizedBox(height: 16),
+          _persistenceSection(),
+          const SizedBox(height: 16),
           TextField(
             controller: _descCtrl,
             maxLines: 4,
@@ -331,7 +524,8 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
           ],
           const SizedBox(height: 16),
           Text(
-            '打卡说明：创建后在列表页点击习惯卡片即可完成当日打卡；按次数习惯每日可多次打卡。',
+            '打卡说明：在列表页点击习惯卡片上的「打卡」按钮，可手动输入本次的数量 / 分钟数；'
+            '达标后当天即视为完成。',
             style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
           ),
         ],

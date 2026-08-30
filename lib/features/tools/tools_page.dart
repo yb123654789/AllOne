@@ -188,7 +188,7 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
                 '· 备份 / 迁移：底部「工具」→ 数据备份与迁移\n'
                 '· 模板管理：底部「工具」→ 模板管理\n'
                 '· 完整设置：底部「工具」→ 打开完整设置\n'
-                '· 侧边栏 ☰ 也保留了一键导出 / 导入入口',
+                '· 功能导航：底部「工具」→ 一键切换任意主功能',
                 style: TextStyle(fontSize: 13, height: 1.6),
               ),
             ],
@@ -245,7 +245,7 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                   child: Text(
-                    '选择哪些功能显示在底部导航栏中（关闭后仍可从侧边栏 ☰ 或本页进入）',
+                    '选择哪些功能显示在底部导航栏中（关闭后仍可从本页「功能导航」进入）\n「工具」为常驻入口，无需也无法关闭',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppTheme.textSecondary,
@@ -253,38 +253,14 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
                   ),
                 ),
                 for (final f in kAppFeatures)
-                  SwitchListTile(
-                    dense: true,
-                    secondary: Icon(f.icon),
-                    title: Text(f.label),
-                    value: _isBottomBarVisible(f.key),
-                    onChanged: (v) => _setBottomBarVisible(f.key, v),
-                  ),
-              ],
-            ),
-          ),
-          _sectionLabel('侧边栏显示设置'),
-          Card(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: Text(
-                    '选择哪些功能显示在侧边栏 ☰ 中，减少拥挤（关闭后仍可从底部导航或本页进入）',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
+                  if (f.key != 'tools')
+                    SwitchListTile(
+                      dense: true,
+                      secondary: Icon(f.icon),
+                      title: Text(f.label),
+                      value: _isBottomBarVisible(f.key),
+                      onChanged: (v) => _setBottomBarVisible(f.key, v),
                     ),
-                  ),
-                ),
-                for (final f in kAppFeatures)
-                  SwitchListTile(
-                    dense: true,
-                    secondary: Icon(f.icon),
-                    title: Text(f.label),
-                    value: _isSidebarVisible(f.key),
-                    onChanged: (v) => _setSidebarVisible(f.key, v),
-                  ),
               ],
             ),
           ),
@@ -460,15 +436,5 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
       }
     }
     ref.read(navSettingsProvider.notifier).setBottomBarVisible(key, v);
-  }
-
-  bool _isSidebarVisible(String key) {
-    final nav =
-        ref.watch(navSettingsProvider).valueOrNull ?? const NavSettings();
-    return nav.isSidebarVisible(key);
-  }
-
-  void _setSidebarVisible(String key, bool v) {
-    ref.read(navSettingsProvider.notifier).setSidebarVisible(key, v);
   }
 }

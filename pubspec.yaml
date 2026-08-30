@@ -66,6 +66,9 @@ dependencies:
   # 权限
   permission_handler: ^11.3.1
 
+  # 课程表照片识别（OCR，本地离线，仅 Android/iOS）
+  google_mlkit_text_recognition: ^0.13.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

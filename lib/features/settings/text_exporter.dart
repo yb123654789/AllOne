@@ -151,6 +151,44 @@ class TextExporter {
     }
   }
 
+  static String _habitFrequencyText(Habit h) {
+    switch (h.frequency) {
+      case HabitFrequency.daily:
+        return '每天';
+      case HabitFrequency.weekly:
+        const names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+        return '每周 ${h.weekdays.map((d) => names[d - 1]).join('/')}';
+      case HabitFrequency.interval:
+        return '每 ${h.intervalDays} 天';
+      case HabitFrequency.weeklyTimes:
+        return '每周 ${h.weeklyTimes} 次';
+    }
+  }
+
+  static String _habitDailyTargetText(Habit h) {
+    switch (h.dailyTarget) {
+      case HabitDailyTarget.once:
+        return '一次即完成';
+      case HabitDailyTarget.quantity:
+        return '每天 ${h.dailyTargetValue} 次/量';
+      case HabitDailyTarget.minutes:
+        return '每天 ${h.dailyTargetValue} 分钟';
+    }
+  }
+
+  static String _habitPersistenceText(Habit h) {
+    switch (h.persistence) {
+      case HabitPersistence.unlimited:
+        return '不限';
+      case HabitPersistence.days:
+        return '坚持 ${h.persistenceValue} 天';
+      case HabitPersistence.times:
+        return '累计 ${h.persistenceValue} 次';
+      case HabitPersistence.cycles:
+        return '每轮 ${h.persistenceValue} 天';
+    }
+  }
+
   static String _habit(WidgetRef ref) {
     final habits = ref.read(habitListProvider).valueOrNull ?? [];
     final checkins = ref.read(habitCheckinProvider).valueOrNull ?? const {};
@@ -162,12 +200,14 @@ class TextExporter {
     for (final h in habits) {
       b.write('## ${h.title.isEmpty ? '未命名习惯' : h.title}\n');
       b.write('- 分类：${h.category}\n');
-      b.write(
-        '- 目标：${h.target.type == HabitType.count ? '次数' : '天数'} ${h.target.value}\n',
-      );
+      b.write('- 频率：${_habitFrequencyText(h)}\n');
+      b.write('- 当天目标：${_habitDailyTargetText(h)}\n');
+      b.write('- 坚持周期：${_habitPersistenceText(h)}\n');
       final cm = checkins[h.id] ?? const CheckinMap();
       b.write('- 已打卡：次数 ${cm.totalCount}，天数 ${cm.totalDays}\n');
-      b.write('- 连续：${cm.streakDays(DateTime.now())} 天\n');
+      b.write(
+        '- 连续：${cm.streakDays(DateTime.now(), isMet: (d) => cm.dayMet(d, h.dailyTarget, h.dailyTargetValue))} 天\n',
+      );
       if (h.tags.isNotEmpty) b.write('- 标签：${h.tags.join('、')}\n');
       if (h.description.isNotEmpty) b.write('- 描述：${h.description.trim()}\n');
       if (h.media.isNotEmpty) {

@@ -45,7 +45,7 @@ AllOneData/
     ├── special_days.json    # 日历界面创建的特殊日子/节假日
     └── settings.json
 settings/
-    └── nav.json             # 导航设置（侧边栏显示哪些功能）
+    └── nav.json             # 导航设置（底部导航栏显示哪些功能）
 ```
 
 > 说明：**每个「条目」是一个目录**，内含一个 `*.json` 元数据文件 + `media/` 附件目录。
@@ -263,7 +263,7 @@ settings/
 
 ```json
 {
-  "sidebarVisible": {
+  "bottomBarVisible": {
     "diary": true,
     "todo": true,
     "habit": false
@@ -272,7 +272,7 @@ settings/
 ```
 
 > - 控制各功能（diary / todo / habit / schedule / ledger / calendar / tools）
->   是否显示在**侧边栏 ☰** 中。
+>   是否显示在**底部导航栏**中。
 > - 未配置的功能默认显示（缺省为 `true`）；关闭后仍可从「工具 → 功能导航」进入。
 
 ## 4. 备份格式

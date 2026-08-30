@@ -5,7 +5,7 @@ import '../../core/theme.dart';
 import 'todo_models.dart';
 import 'todo_repository.dart';
 
-/// 回收站：集中展示已归档（archived）的待办，可「恢复」或「彻底删除」。
+/// 回收站：集中展示「已完成」和「已归档」的待办，可「恢复」或「彻底删除」。
 class TodoTrashPage extends ConsumerWidget {
   const TodoTrashPage({super.key});
 
@@ -16,10 +16,13 @@ class TodoTrashPage extends ConsumerWidget {
       appBar: AppBar(title: const Text('回收站')),
       body: async.when(
         data: (items) {
+          final done = items
+              .where((e) => e.status == TodoStatus.done)
+              .toList();
           final trashed = items
               .where((e) => e.status == TodoStatus.archived)
               .toList();
-          if (trashed.isEmpty) {
+          if (done.isEmpty && trashed.isEmpty) {
             return const Center(
               child: Text(
                 '回收站是空的',
@@ -29,7 +32,17 @@ class TodoTrashPage extends ConsumerWidget {
           }
           return ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            children: [for (final e in trashed) _TrashTile(item: e)],
+            children: [
+              if (done.isNotEmpty) ...[
+                const _SectionHeader(icon: Icons.check_circle_outline, text: '已完成'),
+                for (final e in done) _TrashTile(item: e, kind: _TrashKind.done),
+              ],
+              if (trashed.isNotEmpty) ...[
+                const _SectionHeader(icon: Icons.archive_outlined, text: '已归档'),
+                for (final e in trashed)
+                  _TrashTile(item: e, kind: _TrashKind.archived),
+              ],
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -39,11 +52,42 @@ class TodoTrashPage extends ConsumerWidget {
   }
 }
 
+/// 分节标题
+class _SectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _SectionHeader({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppTheme.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 条目类型：已完成 / 已归档
+enum _TrashKind { done, archived }
+
 /// 回收站条目：显示标题 + 子任务数量，提供恢复 / 彻底删除。
 class _TrashTile extends ConsumerWidget {
   final TodoItem item;
+  final _TrashKind kind;
 
-  const _TrashTile({required this.item});
+  const _TrashTile({required this.item, required this.kind});
 
   int _countAll(TodoItem e) {
     var n = e.children.length;
@@ -80,12 +124,16 @@ class _TrashTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final count = _countAll(item);
+    final isDone = kind == _TrashKind.done;
+    final subtitle = item.children.isEmpty
+        ? (isDone ? '已完成' : '已归档')
+        : (isDone ? '已完成 · 含 $count 个子任务' : '已归档 · 含 $count 个子任务');
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       child: ListTile(
-        leading: const Icon(
-          Icons.archive_outlined,
-          color: AppTheme.textSecondary,
+        leading: Icon(
+          isDone ? Icons.check_circle_outline : Icons.archive_outlined,
+          color: isDone ? AppTheme.primary : AppTheme.textSecondary,
         ),
         title: Text(
           item.title.isEmpty ? '（无标题）' : item.title,
@@ -93,14 +141,14 @@ class _TrashTile extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(
-          item.children.isEmpty ? '已归档' : '已归档 · 含 $count 个子任务',
+          subtitle,
           style: const TextStyle(fontSize: 12),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              tooltip: '恢复',
+              tooltip: isDone ? '恢复为待办' : '恢复',
               icon: const Icon(Icons.restore, color: AppTheme.primary),
               onPressed: () =>
                   ref.read(todoListProvider.notifier).restoreItem(item.id),

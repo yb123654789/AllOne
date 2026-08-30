@@ -26,6 +26,26 @@ class HabitListNotifier extends AsyncNotifier<List<Habit>> {
     ref.invalidateSelf();
   }
 
+  /// 把某个习惯移入回收站（archived=true）
+  Future<void> archiveHabit(String id) async {
+    final list = state.valueOrNull ?? [];
+    final idx = list.indexWhere((e) => e.id == id);
+    if (idx < 0) return;
+    await saveHabit(
+      list[idx].copyWith(archived: true, updatedAt: DateTime.now()),
+    );
+  }
+
+  /// 把某个习惯从回收站恢复（archived=false）
+  Future<void> restoreHabit(String id) async {
+    final list = state.valueOrNull ?? [];
+    final idx = list.indexWhere((e) => e.id == id);
+    if (idx < 0) return;
+    await saveHabit(
+      list[idx].copyWith(archived: false, updatedAt: DateTime.now()),
+    );
+  }
+
   Future<void> deleteHabit(String id) async {
     final store = await ref.read(jsonStoreProvider.future);
     await store.delete('$_dir/$id.json');
@@ -51,11 +71,29 @@ class HabitCheckinNotifier extends AsyncNotifier<Map<String, CheckinMap>> {
     return map;
   }
 
-  Future<void> checkin(String habitId, String date, {int amount = 1}) async {
+  /// 打卡：本次累加 [amount]（数量 / 分钟）。当天目标为「一次即完成」时用 1。
+  Future<void> checkin(
+    String habitId,
+    String date, {
+    int amount = 1,
+  }) async {
     final store = await ref.read(jsonStoreProvider.future);
     final current = state.valueOrNull?[habitId] ?? const CheckinMap();
     final entries = Map<String, int>.from(current.entries);
-    entries[date] = (entries[date] ?? 0) + amount;
+    // 若某天已被标记为失败，重新打卡时清零失败标记
+    final base = (entries[date] ?? 0) < 0 ? 0 : (entries[date] ?? 0);
+    entries[date] = base + (amount <= 0 ? 1 : amount);
+    final updated = CheckinMap(entries: entries);
+    await store.write('$_dir/$habitId.json', updated.toJson());
+    ref.invalidateSelf();
+  }
+
+  /// 标记某天为「失败」（存入 -1）
+  Future<void> failCheckin(String habitId, String date) async {
+    final store = await ref.read(jsonStoreProvider.future);
+    final current = state.valueOrNull?[habitId] ?? const CheckinMap();
+    final entries = Map<String, int>.from(current.entries);
+    entries[date] = -1;
     final updated = CheckinMap(entries: entries);
     await store.write('$_dir/$habitId.json', updated.toJson());
     ref.invalidateSelf();
