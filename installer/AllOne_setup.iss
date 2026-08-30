@@ -4,11 +4,11 @@
 ;   1. 生成安装程序 + 卸载程序（自动注册到控制面板）
 ;   2. 安装时自动创建数据目录 Documents\AllOneData 及全部子目录
 ;   3. 卸载时自动删除程序文件与数据目录
-; 生成产物：installer\output\AllOne_Setup_v1.0.0.exe
+; 生成产物：installer\output\AllOne_Setup_v1.1.0.exe
 ; ============================================================
 
 #define MyAppName "AllOne"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "AllOne"
 #define MyAppExeName "allone.exe"
 #define MyAppId "{{8E9D1F2A-3B4C-5D6E-7F80-9A1B2C3D4E5F}}"

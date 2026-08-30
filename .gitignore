@@ -68,4 +68,5 @@ app.*.map.json
 # 发布产物（安装包/APK 走 GitHub Releases，不存入 git 仓库，避免仓库膨胀）
 /release/*.apk
 /release/**/*.exe
+/installer/output/
 

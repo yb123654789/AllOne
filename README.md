@@ -95,8 +95,8 @@ flutter run          # 在已连接的设备 / 模拟器运行
 
 | 平台 | 文件 | 说明 |
 |------|------|------|
-| **Windows** | `release/windows/AllOne_Setup_v1.0.0.exe` | Inno Setup 安装包：安装向导（简体中文）、开始菜单 / 桌面快捷方式、卸载程序（注册到控制面板）；**安装时自动创建** `文档\AllOneData` 数据目录结构，**卸载时自动删除**程序与数据目录 |
-| **Android** | `release/android/AllOne_v1.0.0.apk` | Release APK（当前使用 debug 签名，可直接安装到手机测试） |
+| **Windows** | `release/windows/AllOne_Setup_v1.1.0.exe` | Inno Setup 安装包：安装向导（简体中文）、开始菜单 / 桌面快捷方式、卸载程序（注册到控制面板）；**安装时自动创建** `文档\AllOneData` 数据目录结构，**卸载时自动删除**程序与数据目录 |
+| **Android** | `build/app/outputs/flutter-apk/app-release.apk` | Release APK（当前使用 debug 签名，可直接安装到手机测试，约 89MB） |
 
 > 安装 / 卸载 / 数据目录的打包逻辑见 `installer/AllOne_setup.iss`（Inno Setup 脚本）。
 
