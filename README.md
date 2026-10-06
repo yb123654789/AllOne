@@ -129,16 +129,18 @@ flutter run          # 在已连接的设备 / 模拟器运行
 
 ## 🚀 发布产物
 
-发布走 **GitHub Actions**：推送 `v*` 标签即自动构建 Windows + Android 并发布到
-[GitHub Releases](https://github.com/yb123654789/AllOne/releases)；推送 `main`
-只上传到 Actions Artifacts。工作流见 `.github/workflows/flutter-build.yml`。
+发布走 **GitHub Actions**：推送 `v*` 标签即自动构建 Windows（zip + 安装包）与 Android，
+发布到 [GitHub Releases](https://github.com/yb123654789/AllOne/releases)；
+推送 `main` 只上传到 Actions Artifacts。工作流见 `.github/workflows/flutter-build.yml`。
 
 | 平台 | 产物 | 说明 |
 |------|------|------|
-| **Windows** | `AllOne-Windows.zip` | 解压即用（含 exe 与全部 dll）。需 Inno Setup 安装包时见下 |
-| **Android** | `app-release.apk` | Release APK（当前使用 debug 签名，可直接装到手机测试） |
+| **Windows** | `AllOne_Setup_vX.Y.Z.exe` | Inno Setup 安装包：安装向导、开始菜单/桌面快捷方式、卸载程序；安装时自动创建数据目录，卸载时一并清除 |
+| **Windows** | `AllOne-vX.Y.Z-Windows.zip` | 免安装版，解压即用（含 exe 与全部 dll） |
+| **Android** | `AllOne-vX.Y.Z.apk` | Release APK（当前使用 debug 签名，可直接装到手机测试） |
 
-> Windows 安装包（Inno Setup）脚本：`installer/AllOne_setup.iss`（需本机装 Inno Setup 6）。
+> 产物文件名带版本号，版本号取自 `pubspec.yaml`；发布前需同步
+> `installer/AllOne_setup.iss` 的 `MyAppVersion`。
 
 ## 🔨 构建
 

@@ -1,4 +1,4 @@
-﻿# 发布产物
+# 发布产物
 
 本目录为**发布产物说明**。安装包 / APK 等大文件**不直接存于 git 仓库**（避免仓库膨胀），统一通过 **GitHub Releases** 发布：
 
@@ -9,7 +9,11 @@
 | 平台 | 文件 | 说明 |
 |------|------|------|
 | **Windows** | `AllOne_Setup_vX.Y.Z.exe` | Inno Setup 安装包（含卸载程序，安装/卸载自动管理 `文档\AllOneData` 数据目录） |
-| **Android** | `AllOne_vX.Y.Z.apk` | Release APK（可直接安装到手机） |
+| **Windows** | `AllOne-vX.Y.Z-Windows.zip` | 免安装版，解压即用（含 exe 与全部 dll） |
+| **Android** | `AllOne-vX.Y.Z.apk` | Release APK（可直接安装到手机） |
+
+> 三个产物均由 CI 自动构建，**推送 `v*` 标签即可**，无需手工打包。
+> 产物文件名带版本号，避免下载多个版本时互相覆盖。
 
 ## 如何发布新版本
 
@@ -20,7 +24,14 @@ git tag v1.2.1
 git push origin v1.2.1
 ```
 
-或到 GitHub 仓库 **Actions** 页手动运行 **Build AllOne** 工作流，产物会作为 Artifacts 提供。
+CI 依次完成：构建 Windows → 打包 zip → 编译 Inno Setup 安装包 →
+构建 Android APK → 按 `pubspec.yaml` 的版本号重命名产物 → 发布到 Releases。
+
+> **版本号取自 `pubspec.yaml`**（`version: X.Y.Z+build`）。发布前先改它，
+> 并同步 `installer/AllOne_setup.iss` 里的 `MyAppVersion`（否则文件名与版本号会不一致）。
+
+或到 GitHub 仓库 **Actions** 页手动运行 **Build AllOne** 工作流；
+手动触发时可在 *Use workflow from* 选已有标签，用于给旧发布补齐产物。
 
 ## 打包脚本
 
