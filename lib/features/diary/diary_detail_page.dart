@@ -59,7 +59,34 @@ class DiaryDetailPage extends ConsumerWidget {
               _content(context, store),
               if (entry.media.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                _attachments(context, store),
+                // 附件区必须等 store 就绪再渲染。
+                //
+                // 附件路径 = store.root.path + 条目目录，store 为 null 时算不出路径，
+                // 于是 `file.existsSync()` 恒为 false —— 表现为「只显示文件名、
+                // 打不开」（打开/播放按钮根本不出现）。
+                // 之前这里在加载期间直接用 null 渲染，正是这个症状的来源。
+                store == null
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              '正在加载附件…',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _attachments(context, store),
               ],
             ],
           );
@@ -196,7 +223,7 @@ class DiaryDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _attachments(BuildContext context, JsonStore? store) {
+  Widget _attachments(BuildContext context, JsonStore store) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -210,10 +237,11 @@ class DiaryDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _mediaTile(BuildContext context, JsonStore? store, MediaAttachment m) {
-    final mediaDir = store == null
-        ? ''
-        : '${store.root.path}/diary/entries/${entry.id}/media';
+  Widget _mediaTile(BuildContext context, JsonStore store, MediaAttachment m) {
+    // store 一定非空（调用方已保证），因此路径总是可算的。
+    // 早期这里允许 store 为 null 并把 mediaDir 退化成空串，
+    // 会让所有附件「存在性判断」失败（表现为只显示文件名、打不开）。
+    final mediaDir = '${store.root.path}/diary/entries/${entry.id}/media';
     switch (m.type) {
       case MediaType.photo:
         final file = File(p.join(mediaDir, m.file ?? ''));

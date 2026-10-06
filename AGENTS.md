@@ -11,13 +11,17 @@ AllOne —— 个人全功能生活管理 App（Flutter，本地存储优先）�
 ## 技术栈
 
 - Flutter 3.47（Dart 3.13）+ Riverpod 2.x（状态管理）
-- flutter_map（离线地图）、archive/share_plus（备份）、file_picker/record/audioplayers/video_player（附件）
+- `flutter_map` + `latlong2`（地图）、`geolocator`（系统定位；**GPS 离线可用**）
+- 底图源可选，见 `lib/core/widgets/tile_sources.dart`：默认 **Esri**
+  （OSM 官方在国内常被 DNS 污染 / 直连超时，会导致地图**整块空白**，
+  看着像 bug 其实是网络）；本地 `AllOneData/map_tiles/` 有瓦片时优先读取
+- `archive/share_plus`（备份）、`file_picker/record/audioplayers/video_player`（附件）、`syncfusion_flutter_pdf/fast_gbk`（外部日记导入：PDF 文本提取 / GBK txt 解码）
 
 ## 常用命令（智能体应直接运行）
 
 ```bash
 flutter pub get                 # 拉取依赖
-flutter test                    # 单元测试（test/models_test.dart）
+flutter test                    # 单元测试（test/ 下：models_test.dart、diary_import_test.dart 等）
 flutter analyze                 # 静态分析
 flutter run -d chrome           # 开发期快速预览（无需 Android SDK / VS）
 flutter build windows --release # Windows 桌面版
@@ -25,6 +29,10 @@ flutter build apk --release     # Android APK
 ```
 
 > Windows 桌面构建需要 Visual Studio（"C++ 桌面开发"工作负载）；iOS 构建需 macOS + Xcode。云编译走 GitHub Actions（`.github/workflows/flutter-build.yml`），产物在 Actions 的 Artifacts 下载。
+>
+> **Windows 构建必须在纯英文路径下进行**：路径含中文时 Flutter 的 Windows 工具链会报
+> `Unable to read file ... app.dill`（路径按 GBK 解释而实际是 UTF-8）。
+> 8.3 短路径、目录联接（junction）都绕不过去，因为 Flutter 内部仍会解析出真实路径。
 
 ## 架构约定（务必遵守）
 
@@ -53,8 +61,8 @@ flutter build apk --release     # Android APK
 
 ## 测试约定
 
-- 单元测试集中在 `test/models_test.dart`，用 `group('模块名', ...)` 组织；核心是 **JSON 往返**（`toJson` → `fromJson`）与关键逻辑（进度、连续打卡）。
-- 新增模型时，在对应 `group` 里补 JSON 往返测试。
+- 单元测试集中在 `test/` 下（按模块分文件：`models_test.dart` 等），用 `group('模块名', ...)` 组织；核心是 **JSON 往返**（`toJson` → `fromJson`）与关键逻辑（进度、连续打卡）。
+- 新增模型时，在对应 `group` 里补 JSON 往返测试；纯逻辑（如 `features/diary/diary_import.dart` 的解析 / 切分 / 去重）可直接单元测试。
 
 ## 常见坑（源自历史会话）
 

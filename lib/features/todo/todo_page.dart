@@ -36,6 +36,7 @@ Set<String> _collectTodoTags(List<TodoItem> items) {
       walk(t.children);
     }
   }
+
   walk(items);
   return set;
 }
@@ -53,7 +54,7 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   String _query = '';
 
   /// 多标签交叉筛选（AND：必须同时包含全部所选标签）
-  Set<String> _filterTags = {};
+  final Set<String> _filterTags = {};
 
   @override
   Widget build(BuildContext context) {
@@ -231,14 +232,15 @@ class _TodoPageState extends ConsumerState<TodoPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialog) {
-          final candidates = allTags
-              .where(
-                (t) =>
-                    query.isEmpty ||
-                    t.toLowerCase().contains(query.toLowerCase()),
-              )
-              .toList()
-            ..sort();
+          final candidates =
+              allTags
+                  .where(
+                    (t) =>
+                        query.isEmpty ||
+                        t.toLowerCase().contains(query.toLowerCase()),
+                  )
+                  .toList()
+                ..sort();
           return AlertDialog(
             title: const Text('按标签筛选（交叉）'),
             content: SizedBox(
@@ -492,8 +494,7 @@ class _TodoNodeState extends ConsumerState<_TodoNode> {
                               label: const Text('添加子任务'),
                               style: TextButton.styleFrom(
                                 visualDensity: VisualDensity.compact,
-                                tapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
                                 ),
@@ -512,9 +513,7 @@ class _TodoNodeState extends ConsumerState<_TodoNode> {
           for (final c in e.children)
             if (_subtreeMatchTodo(c, widget.query, widget.tags))
               Padding(
-                padding: EdgeInsets.only(
-                  left: (widget.depth * 16).toDouble(),
-                ),
+                padding: EdgeInsets.only(left: (widget.depth * 16).toDouble()),
                 child: _TodoNode(
                   item: c,
                   depth: widget.depth + 1,
@@ -547,10 +546,7 @@ class _TodoNodeState extends ConsumerState<_TodoNode> {
               onTap: () => Navigator.pop(ctx, 'archive'),
             ),
             ListTile(
-              leading: const Icon(
-                Icons.delete_outline,
-                color: AppTheme.danger,
-              ),
+              leading: const Icon(Icons.delete_outline, color: AppTheme.danger),
               title: const Text('删除'),
               onTap: () => Navigator.pop(ctx, 'delete'),
             ),

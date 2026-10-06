@@ -7,7 +7,9 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/backup/backup_service.dart';
 import '../../core/storage/app_paths.dart';
+import '../../core/storage/nav_providers.dart';
 import '../../core/theme.dart';
+import '../../core/widgets/tile_sources.dart';
 import 'text_exporter.dart';
 
 /// 设置页：备份 / 恢复 / 通用文本导出 / 数据目录。
@@ -132,14 +134,67 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         Process.start('explorer', [_dataDir]);
       } catch (_) {}
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('数据目录：$_dataDir')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('数据目录：$_dataDir')));
+    }
+  }
+
+  /// 选择地图底图源
+  Future<void> _pickMapSource() async {
+    final current = ref.read(tileSourceProvider);
+    final picked = await showDialog<TileSource>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('选择地图底图'),
+        children: [
+          for (final s in TileSources.all)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, s),
+              child: Row(
+                children: [
+                  Icon(
+                    s.id == current.id
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 18,
+                    color: s.id == current.id
+                        ? AppTheme.primary
+                        : AppTheme.textSecondary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s.name, style: const TextStyle(fontSize: 14)),
+                        if (s.gcj02)
+                          const Text(
+                            '坐标有偏移（GCJ-02），仅影响地图显示位置',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+    if (picked == null || !mounted) return;
+    await ref.read(navSettingsProvider.notifier).setMapSource(picked.id);
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('底图已切换为：${picked.name}')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final source = ref.watch(tileSourceProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
@@ -167,6 +222,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   subtitle: Text(_sizeText.isEmpty ? '加载中…' : _sizeText),
                 ),
               ],
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.map_outlined, color: AppTheme.primary),
+              title: const Text('地图底图'),
+              subtitle: Text(
+                '${source.name}\n'
+                'OSM 官方瓦片在国内常连不上导致地图空白，可在此换源；'
+                '也可把标准 XYZ 瓦片放到 AllOneData/map_tiles 离线使用。',
+              ),
+              isThreeLine: true,
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _busy ? null : _pickMapSource,
             ),
           ),
           Card(

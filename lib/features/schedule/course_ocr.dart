@@ -44,9 +44,7 @@ Future<CourseOcrResult?> recognizeCourseFromImage() async {
   if (file == null) return null;
 
   // 中文识别脚本
-  final recognizer = TextRecognizer(
-    script: TextRecognitionScript.chinese,
-  );
+  final recognizer = TextRecognizer(script: TextRecognitionScript.chinese);
   try {
     final input = InputImage.fromFile(file);
     final result = await recognizer.processImage(input);
@@ -81,13 +79,35 @@ CourseOcrResult parseOcrCourses(List<String> lines) {
   final timeRegex = RegExp(r'(\d{1,2}):(\d{2})\s*[-~至到]\s*(\d{1,2}):(\d{2})');
   final singleTimeRegex = RegExp(r'(\d{1,2}):(\d{2})');
   final weekdays = {
-    '周一': 1, '星期一': 1, '礼拜一': 1, '周1': 1,
-    '周二': 2, '星期二': 2, '礼拜二': 2, '周2': 2,
-    '周三': 3, '星期三': 3, '礼拜三': 3, '周3': 3,
-    '周四': 4, '星期四': 4, '礼拜四': 4, '周4': 4,
-    '周五': 5, '星期五': 5, '礼拜五': 5, '周5': 5,
-    '周六': 6, '星期六': 6, '礼拜六': 6, '周6': 6,
-    '周日': 7, '星期日': 7, '星期天': 7, '礼拜日': 7, '周7': 7,
+    '周一': 1,
+    '星期一': 1,
+    '礼拜一': 1,
+    '周1': 1,
+    '周二': 2,
+    '星期二': 2,
+    '礼拜二': 2,
+    '周2': 2,
+    '周三': 3,
+    '星期三': 3,
+    '礼拜三': 3,
+    '周3': 3,
+    '周四': 4,
+    '星期四': 4,
+    '礼拜四': 4,
+    '周4': 4,
+    '周五': 5,
+    '星期五': 5,
+    '礼拜五': 5,
+    '周5': 5,
+    '周六': 6,
+    '星期六': 6,
+    '礼拜六': 6,
+    '周6': 6,
+    '周日': 7,
+    '星期日': 7,
+    '星期天': 7,
+    '礼拜日': 7,
+    '周7': 7,
   };
   final weekRegex = RegExp(r'第?(\d{1,2})[、\s-]*[周周节]');
   final roomKeyword = RegExp(
@@ -110,9 +130,17 @@ CourseOcrResult parseOcrCourses(List<String> lines) {
     // 判断时间段
     final timeMatch = timeRegex.firstMatch(s);
     if (timeMatch != null) {
-      startTime = '${timeMatch.group(1)!.padLeft(2, '0')}:${timeMatch.group(2)}';
+      startTime =
+          '${timeMatch.group(1)!.padLeft(2, '0')}:${timeMatch.group(2)}';
       endTime = '${timeMatch.group(3)!.padLeft(2, '0')}:${timeMatch.group(4)}';
       continue;
+    }
+
+    // 只有单个时间（如单独一行的「8:00」）时作为开始时间
+    final singleMatch = singleTimeRegex.firstMatch(s);
+    if (singleMatch != null && startTime == null) {
+      startTime =
+          '${singleMatch.group(1)!.padLeft(2, '0')}:${singleMatch.group(2)}';
     }
 
     // 判断教室
@@ -137,8 +165,7 @@ CourseOcrResult parseOcrCourses(List<String> lines) {
 
   // 课程名：取最像课程名的（一般是第一项且非纯时间/地点）
   final name = nameParts.isNotEmpty ? nameParts.first : '';
-  final teacher =
-      teacherParts.isNotEmpty ? teacherParts.join('、') : '';
+  final teacher = teacherParts.isNotEmpty ? teacherParts.join('、') : '';
   // 周次：拆出连续的周数字
   final weeks = _extractWeeks(raw);
 
@@ -156,7 +183,8 @@ CourseOcrResult parseOcrCourses(List<String> lines) {
 
 /// 从原文里提取周次（如 1-16 或 1,2,3,4,5），返回逗号分隔。
 String _extractWeeks(String raw) {
-  final rangeMatch = RegExp(r'(第)?\s*(\d{1,2})\s*[-~至到]\s*(\d{1,2})\s*[周节]').firstMatch(raw);
+  final rangeMatch = RegExp(r'(第)?\s*(\d{1,2})\s*[-~至到]\s*(\d{1,2})\s*[周节]')
+      .firstMatch(raw);
   if (rangeMatch != null) {
     final a = int.tryParse(rangeMatch.group(2)!) ?? 1;
     final b = int.tryParse(rangeMatch.group(3)!) ?? a;
@@ -164,7 +192,10 @@ String _extractWeeks(String raw) {
       return List.generate(b - a + 1, (i) => (a + i).toString()).join(',');
     }
   }
-  final listMatch = RegExp(r'\d{1,2}').allMatches(raw).map((m) => m.group(0)!).toList();
+  final listMatch = RegExp(r'\d{1,2}')
+      .allMatches(raw)
+      .map((m) => m.group(0)!)
+      .toList();
   final nums = <int>[];
   for (final n in listMatch) {
     final v = int.tryParse(n) ?? 0;

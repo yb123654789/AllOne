@@ -70,10 +70,23 @@ flutter analyze       # 静态分析
 - 必须在 macOS + Xcode 上执行；
 - `flutter config --enable-ios` 并确保 `flutter doctor` 中 iOS 项通过。
 
-### 5.4 离线地图瓦片
-- 默认使用在线 OSM 瓦片；
-- 完全离线：把 XYZ 瓦片放入 `AllOneData/map_tiles/{z}/{x}/{y}.png`，
-  应用会自动优先使用本地瓦片（回退在线）。
+### 5.4 地图底图与离线瓦片
+
+- **在线底图**：默认 **Esri 世界街道图**，可在「设置 → 地图底图」切换
+  （Esri 街道 / Esri 影像 / 高德 / 腾讯 / OSM）。
+  为什么不用 OSM 官方做默认：`tile.openstreetmap.org` 在国内常被 DNS 污染 /
+  直连超时，地图会**整块空白**。实测未开代理时 OSM / Carto / OpenTopoMap 全部超时。
+  高德 / 腾讯使用 **GCJ-02** 坐标，与 GPS 的 WGS-84 有几十米偏移（仅影响显示位置）。
+- **离线瓦片**：把标准 XYZ 瓦片放入 `AllOneData/map_tiles/{z}/{x}/{y}.png`，
+  应用会**优先使用本地瓦片**，缺失才回退在线源。项目不内置地图数据。
+- **定位**：使用系统定位（手机 GPS），**不需要网络**；权限被拒时会明确提示。
+
+### 5.5 Windows 构建必须在纯英文路径下
+
+路径含中文时 Flutter 的 Windows 工具链会报
+`Unable to read file ... app.dill`（路径按 GBK 解释而实际是 UTF-8）。
+实测 8.3 短路径与目录联接（junction）都绕不过去 —— Flutter 内部仍会解析出真实路径。
+建议工程放在纯英文路径（如 `C:\VScode\SoftwareDevelopment\AllOne`）。
 
 ## 6. 数据目录
 

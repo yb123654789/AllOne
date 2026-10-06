@@ -68,6 +68,8 @@ class DiaryEntry {
   );
 
   DiaryEntry copyWith({
+    /// 仅在导入时用于「ID 冲突后重新生成」，常规编辑不要改 ID
+    String? id,
     String? templateId,
     String? title,
     String? plainText,
@@ -78,7 +80,7 @@ class DiaryEntry {
     List<MediaAttachment>? media,
     bool? pinned,
   }) => DiaryEntry(
-    id: id,
+    id: id ?? this.id,
     templateId: templateId ?? this.templateId,
     title: title ?? this.title,
     plainText: plainText ?? this.plainText,

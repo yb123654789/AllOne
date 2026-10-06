@@ -9,26 +9,25 @@ AllOne 的所有数据保存在一个**根数据目录**中（用户可自行选
 
 ```
 AllOneData/
-├── manifest.json            # 数据版本、schema 版本、应用信息
 ├── diary/                   # 日记模块
 │   ├── templates/           # 日记模板
 │   │   └── <templateId>.json
 │   └── entries/
-│       └── <entryId>/
-│           ├── entry.json   # 日记元数据 + 正文
-│           ├── media/       # 附件（照片/录音/视频/文件）
-│           └── preview.jpg  # 缩略图（可选）
+│       ├── <entryId>.json   # 日记元数据 + 正文
+│       └── <entryId>/       # 同一 id 的附件目录（与 .json 并列）
+│           └── media/       # 附件（照片/录音/视频/文件）
 ├── todo/                    # 待办模块
 │   ├── templates/           # 待办模板
 │   └── items/
+│       ├── <itemId>.json    # 顶层待办（子任务内嵌在 children）
 │       └── <itemId>/
-│           ├── item.json
-│           └── media/
+│           └── media/       # 附件
 ├── habit/
 │   ├── habits/
-│   │   └── <habitId>.json
-│   └── checkins/            # 打卡记录（按日期）
-│       └── <habitId>_<yyyy-MM>.json
+│   │   ├── <habitId>.json
+│   │   └── <habitId>/media/
+│   └── checkins/
+│       └── <habitId>.json   # 打卡记录 { "yyyy-MM-dd": 数值 }
 ├── schedule/
 │   ├── terms/               # 学期（半年一换）
 │   │   └── <termId>.json
@@ -41,15 +40,23 @@ AllOneData/
 │   │   └── <accountId>.json
 │   └── transactions/        # 流水（扁平文件：<accountId>_<yyyy-MM>.json）
 │       └── <accountId>_<yyyy-MM>.json
-└── calendar/
-    ├── special_days.json    # 日历界面创建的特殊日子/节假日
-    └── settings.json
+├── calendar/
+│   ├── special_days.json    # 日历界面创建的特殊日子/节假日
+│   └── settings.json
+└── map_tiles/               # 离线地图瓦片（可选，{z}/{x}/{y}.png）
+
 settings/
     └── nav.json             # 导航设置（底部导航栏显示哪些功能）
 ```
 
-> 说明：**每个「条目」是一个目录**，内含一个 `*.json` 元数据文件 + `media/` 附件目录。
+> 说明：日记 / 待办 / 习惯的每一条数据是「一个 JSON 文件 + 一个同名附件目录」，
+> 附件目录与 JSON **并列**（不是把 JSON 放进目录里），且附件字段只存**文件名**，
+> 目录由条目 id 推导（如 `todo/items/<id>/media/<文件名>`）。
 > 好处：备份时整个目录原样复制；条目独立，单条目损坏不影响全局；附件与元数据天然在一起。
+>
+> 注意：**没有 `manifest.json`**。数据版本迁移所需的字段目前尚未落盘，
+> 若将来需要 schema 迁移，应先实现它再更新本文档。
+
 
 ## 2. 通用约定
 
@@ -57,38 +64,41 @@ settings/
 
 ## 3. 各模块数据模型（JSON Schema 摘要）
 
-### 3.1 日记条目 `entry.json`
+### 3.1 日记条目 `diary/entries/<entryId>.json`
 
 ```json
 {
-  "id": "202608201030-a1b2",
-  "type": "diary",
-  "templateId": "tp-default",
+  "id": "20260820103000-a1b2c",
   "title": "标题",
   "plainText": "正文（纯文本，类似 txt）",
-  "createdAt": "2026-08-20T10:30:00+08:00",
-  "updatedAt": "2026-08-20T10:35:00+08:00",
-  "stamps": {
-    "time": { "enabled": true, "nodeDate": "2027-02-20", "pinTop": true },
-    "location": { "enabled": true, "lat": 30.67, "lng": 104.06, "name": "家", "poiId": "..." },
-    "tags": ["生活", "旅行"]
-  },
+  "createdAt": "2026-08-20T10:30:00.000",
+  "updatedAt": "2026-08-20T10:35:00.000",
+  "timeStamp": { "enabled": true, "nodeDate": "2027-02-20", "pinTop": true },
+  "locationStamp": { "enabled": true, "lat": 30.67, "lng": 104.06, "name": "家" },
+  "tags": ["生活", "旅行"],
   "media": [
-    { "type": "photo", "file": "media/xxx.jpg", "size": 123456 },
-    { "type": "audio", "file": "media/yyy.m4a", "size": 4567 },
-    { "type": "video", "file": "media/zzz.mp4", "size": 8000000 },
-    { "type": "file", "file": "media/aaa.pdf", "size": 9999 },
-    { "type": "video-link", "external": "D:\\Videos\\big.mp4", "note": "大视频外链" }
-  ]
+    { "type": "photo", "file": "1787658907441_a.jpg", "size": 123456 },
+    { "type": "audio", "file": "1787658907442_rec.m4a", "size": 4567 },
+    { "type": "video", "file": "1787658907443_v.mp4", "size": 8000000 },
+    { "type": "file", "file": "1787658907444_d.pdf", "size": 9999 },
+    { "type": "videoLink", "external": "D:\\Videos\\big.mp4", "note": "大视频外链" }
+  ],
+  "pinned": false
 }
 ```
 
-> 正文为**纯文本**（类似 txt），手机 / 电脑键盘双适配编辑。
+> - 正文为**纯文本**（类似 txt），手机 / 电脑键盘双适配编辑。
+> - `templateId` 为**可选**字段，仅在使用模板创建时写入。
+> - `tags` / `timeStamp` / `locationStamp` 是**顶层字段**（不是嵌套的 `stamps`）。
+> - `media[].type` 取值为 `photo | audio | video | file | videoLink`。
+> - `media[].file` 只存**文件名**，实际路径为
+>   `diary/entries/<entryId>/media/<file>`。
 
 **大视频处理规则**：
 - 附件 ≥ 阈值（默认 50MB，可配置）→ 不复制进 `media/`，改为 `external` 外链引用（保存原路径 / 外部存储位置），正文中以链接形式展示。
 
-### 3.2 待办条目 `item.json`
+
+### 3.2 待办条目 `todo/items/<itemId>.json`
 
 ```json
 {
@@ -162,26 +172,40 @@ settings/
 
 ```json
 {
-  "id": "habit-001",
+  "id": "20260824224613-18806",
   "title": "每日阅读",
   "category": "学习",
-  "type": "duration | count",
-  "target": { "unit": "天 | 次", "value": 30 },
+  "frequency": "daily",
+  "weekdays": [],
+  "intervalDays": 1,
+  "weeklyTimes": 1,
+  "dailyTarget": "once",
+  "dailyTargetValue": 1,
+  "persistence": "unlimited",
+  "persistenceValue": 0,
+  "archived": false,
   "description": "描述（纯文本）",
   "media": [],
   "tags": [],
-  "createdAt": "..."
+  "createdAt": "2026-08-24T22:46:13.000",
+  "updatedAt": "2026-08-24T22:46:13.000"
 }
 ```
 
-> 习惯描述为**纯文本**，可附附件与标签。
+> 三维度打卡：**频率** `frequency` = `daily | weekly | interval | weeklyTimes`
+> （配合 `weekdays` / `intervalDays` / `weeklyTimes`）；
+> **当天目标** `dailyTarget` = `once | quantity | minutes`（配合 `dailyTargetValue`）；
+> **坚持周期** `persistence` = `unlimited | days | times | cycles`（配合 `persistenceValue`）。
+> 习惯描述为**纯文本**，可附附件与标签。`archived=true` 表示已移入回收站。
 
-打卡记录 `checkins/<habitId>_<yyyy-MM>.json`：
+打卡记录 `checkins/<habitId>.json`（**一个习惯一个文件**，不是按月分文件）：
 ```json
-{ "2026-08-01": 1, "2026-08-02": 1, "2026-08-05": 0 }
+{ "2026-08-01": 1, "2026-08-02": 3, "2026-08-05": -1 }
 ```
 
-### 3.5 课程表
+> 值为当天累计数值；`-1` 表示当天标记为**失败**（不计入完成与连续打卡）。
+
+### 3.6 课程表
 
 学期 `terms/<termId>.json`：
 ```json
@@ -209,7 +233,7 @@ settings/
 }
 ```
 
-### 3.6 记账
+### 3.7 记账
 
 总账本 `ledger.json`：
 ```json
@@ -259,7 +283,7 @@ settings/
 >   由代码在运行时动态生成（含农历算法，见 `calendar/lunar_calendar.dart`），**不落盘**，
 >   因此备份中无需包含，也不可被删除。
 
-### 3.9 导航设置 `settings/nav.json`
+### 3.10 导航设置 `settings/nav.json`
 
 ```json
 {
@@ -282,9 +306,12 @@ settings/
 - **通用文本导出**：设置页可把日记 / 待办 / 习惯 / 课程 / 记账整理为
   `01_diary.md`、`02_todo.md` 等标准 Markdown / txt 文件打包成 zip，
   任何设备可用记事本打开（此格式**只读导出**，不用于导入）。
-- 恢复：从 zip 导入，校验后覆盖/合并。
+- 恢复：从 zip 导入，**覆盖同名文件**（逐文件先写 `.tmp` 再改名，保证单个文件不会写一半）。
+  导出与恢复都采用流式读写，附件再大也不会把整个文件读进内存。
 
 ## 5. 兼容与迁移
 
-- `manifest.json` 记录 `schemaVersion`，未来升级时按版本做增量迁移。
+- 目前**没有** `manifest.json`，也没有落盘的 `schemaVersion`。
+  早期文档曾声称存在，实际未实现；若将来需要做数据版本迁移，
+  应先在 `AppPaths` / 启动流程中实现它，再更新本文档。
 - 附件与正文分离，正文始终是通用文本（Markdown/txt），保证 10 年后仍可读。

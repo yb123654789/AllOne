@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../core/widgets/tag_dialogs.dart';
 import 'diary_detail_page.dart';
 import 'diary_edit_page.dart';
+import 'diary_import_page.dart';
 import 'diary_models.dart';
 import 'diary_repository.dart';
 import 'diary_templates_page.dart';
@@ -19,7 +20,7 @@ class DiaryPage extends ConsumerStatefulWidget {
 
 class _DiaryPageState extends ConsumerState<DiaryPage> {
   /// 多标签交叉筛选（AND：必须同时包含全部所选标签）
-  Set<String> _filterTags = {};
+  final Set<String> _filterTags = {};
 
   Future<void> _openNew() async {
     await Navigator.push(
@@ -81,6 +82,14 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const DiaryTemplatesPage()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.file_upload_outlined),
+            tooltip: '导入外部日记（txt / PDF，不覆盖现有日记）',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DiaryImportPage()),
             ),
           ),
         ],
@@ -171,7 +180,8 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
 
   /// 多标签交叉筛选对话框
   Future<void> _showTagFilterDialog() async {
-    final allTags = ref
+    final allTags =
+        ref
             .read(diaryListProvider)
             .valueOrNull
             ?.expand((e) => e.tags)
@@ -182,7 +192,13 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
       allTags: allTags.toList(),
       initial: Set.of(_filterTags),
     );
-    if (result != null) setState(() => _filterTags..clear()..addAll(result));
+    if (result != null) {
+      setState(
+        () => _filterTags
+          ..clear()
+          ..addAll(result),
+      );
+    }
   }
 
   Widget _card(DiaryEntry e) {

@@ -114,8 +114,8 @@ class Habit {
       (e) => e.name == (json['persistence'] as String?),
       orElse: () => persistence,
     );
-    persistenceValue = (json['persistenceValue'] as num?)?.toInt() ??
-        persistenceValue;
+    persistenceValue =
+        (json['persistenceValue'] as num?)?.toInt() ?? persistenceValue;
 
     return Habit(
       id: json['id'] as String? ?? '',
@@ -125,7 +125,8 @@ class Habit {
         (e) => e.name == (json['frequency'] as String?),
         orElse: () => HabitFrequency.daily,
       ),
-      weekdays: (json['weekdays'] as List?)
+      weekdays:
+          (json['weekdays'] as List?)
               ?.whereType<num>()
               .map((e) => e.toInt())
               .toList() ??
@@ -148,9 +149,11 @@ class Habit {
           const [],
       tags: (json['tags'] as List?)?.whereType<String>().toList() ?? const [],
       createdAt:
-          DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
       updatedAt:
-          DateTime.tryParse(json['updatedAt'] as String? ?? '') ?? DateTime.now(),
+          DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 

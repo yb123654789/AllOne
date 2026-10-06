@@ -18,14 +18,15 @@ Future<List<String>?> showTagPicker(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialog) {
-          final candidates = allTags
-              .where(
-                (t) =>
-                    query.isEmpty ||
-                    t.toLowerCase().contains(query.toLowerCase()),
-              )
-              .toList()
-            ..sort();
+          final candidates =
+              allTags
+                  .where(
+                    (t) =>
+                        query.isEmpty ||
+                        t.toLowerCase().contains(query.toLowerCase()),
+                  )
+                  .toList()
+                ..sort();
           return AlertDialog(
             title: Text(title),
             content: SizedBox(
@@ -167,14 +168,15 @@ Future<Set<String>?> showTagFilterDialog(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setDialog) {
-        final candidates = allTags
-            .where(
-              (t) =>
-                  query.isEmpty ||
-                  t.toLowerCase().contains(query.toLowerCase()),
-            )
-            .toList()
-          ..sort();
+        final candidates =
+            allTags
+                .where(
+                  (t) =>
+                      query.isEmpty ||
+                      t.toLowerCase().contains(query.toLowerCase()),
+                )
+                .toList()
+              ..sort();
         return AlertDialog(
           title: const Text('按标签筛选（交叉）'),
           content: SizedBox(
@@ -185,10 +187,7 @@ Future<Set<String>?> showTagFilterDialog(
               children: [
                 const Text(
                   '勾选多个标签：只显示同时包含全部所选标签的条目',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                 ),
                 const SizedBox(height: 8),
                 TextField(
@@ -254,10 +253,7 @@ Future<Set<String>?> showTagFilterDialog(
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, <String>{}),
-              child: const Text(
-                '清除',
-                style: TextStyle(color: AppTheme.danger),
-              ),
+              child: const Text('清除', style: TextStyle(color: AppTheme.danger)),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, selected),

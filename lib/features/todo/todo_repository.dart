@@ -26,9 +26,24 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
     return list;
   }
 
+  /// 取当前待办树；**若尚未加载完成则先等待加载**。
+  ///
+  /// 这个方法是防「整表被清空」的关键：[_persist] 会重写全部顶层文件，
+  /// 并把不在列表里的文件**删掉**。如果这里像以前那样退化成
+  /// `state.valueOrNull ?? []`，那么只要在数据还没加载好时触发任意一次写操作
+  /// （例如刚打开 App 立刻点了保存 / 删除 / 勾选完成），
+  /// 拿到的就是空列表，[_persist] 会把**磁盘上所有待办全部删除**。
+  ///
+  /// 因此这里宁可等待也不猜：拿不到数据就等它加载完。
+  Future<List<TodoItem>> _treeOrLoad() async {
+    final current = state.valueOrNull;
+    if (current != null) return current;
+    return await ref.read(todoListProvider.future);
+  }
+
   /// 保存：若 id 已存在则替换（编辑），否则作为新顶层条目追加。
   Future<void> saveItem(TodoItem item) async {
-    final tree = state.valueOrNull ?? [];
+    final tree = await _treeOrLoad();
     final exists = _findInTree(tree, item.id);
     final newTree = <TodoItem>[...tree];
     if (exists != null) {
@@ -42,15 +57,27 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
   }
 
   /// 删除任意节点（顶层或子任务）；删除顶层时同时移除其文件。
+  ///
+  /// 注意：只删除**顶层文件**。子任务内嵌在父 JSON 的 `children` 中，
+  /// 随父文件一起消失；而附件存放在 `todo/items/<顶层id>/media/`，
+  /// 因此删除顶层条目时必须连同该附件目录一起清理，
+  /// 否则会留下永远无法访问的孤立附件。
   Future<void> deleteItem(String id) async {
-    final tree = state.valueOrNull ?? [];
-    await _persist(_removeTree(tree, id));
+    final tree = await _treeOrLoad();
+    final newTree = _removeTree(tree, id);
+    // 被移除的顶层条目（含其整棵子树）id
+    final kept = newTree.map((e) => e.id).toSet();
+    final removed = tree
+        .map((e) => e.id)
+        .where((e) => !kept.contains(e))
+        .toList();
+    await _persist(newTree, removedIds: removed);
   }
 
   /// 设置任意节点状态（顶层 / 子任务递归定位）。
   /// 若标记为完成（done），会向上自动传播：父节点的所有直接子任务均完成时，父节点自动完成。
   Future<void> setStatus(String id, TodoStatus status) async {
-    final tree = state.valueOrNull ?? [];
+    final tree = await _treeOrLoad();
     var newTree = _mapTree(
       tree,
       id,
@@ -64,7 +91,7 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
 
   /// 把 id 节点（含整棵子树）移入回收站（archived）
   Future<void> archiveItem(String id) async {
-    final tree = state.valueOrNull ?? [];
+    final tree = await _treeOrLoad();
     await _persist(
       _mapTree(tree, id, (e) => _withSubtreeStatus(e, TodoStatus.archived)),
     );
@@ -72,7 +99,7 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
 
   /// 把 id 节点（含整棵子树）从回收站恢复（pending）
   Future<void> restoreItem(String id) async {
-    final tree = state.valueOrNull ?? [];
+    final tree = await _treeOrLoad();
     await _persist(
       _mapTree(tree, id, (e) => _withSubtreeStatus(e, TodoStatus.pending)),
     );
@@ -80,7 +107,7 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
 
   /// 给指定父节点添加子任务
   Future<void> addChild(String parentId, TodoItem child) async {
-    final tree = state.valueOrNull ?? [];
+    final tree = await _treeOrLoad();
     await _persist(
       _mapTree(
         tree,
@@ -158,7 +185,8 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
     if (node.status == TodoStatus.archived) {
       return node.copyWith(children: newChildren);
     }
-    final allDone = newChildren.isNotEmpty &&
+    final allDone =
+        newChildren.isNotEmpty &&
         newChildren.every((c) => c.status == TodoStatus.done);
     if (allDone && node.status != TodoStatus.done) {
       return node.copyWith(
@@ -171,20 +199,61 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
   }
 
   /// 持久化：重写所有顶层文件，并删除已不存在的顶层文件。
-  Future<void> _persist(List<TodoItem> tree) async {
+  ///
+  /// [removedIds] 为本次被删除的顶层条目 id：除 JSON 外，
+  /// 还会清理其附件目录 `todo/items/<id>/media/`，避免遗留孤立附件。
+  Future<void> _persist(
+    List<TodoItem> tree, {
+    List<String> removedIds = const [],
+  }) async {
     final store = await ref.read(jsonStoreProvider.future);
     for (final top in tree) {
       await store.write('$_dir/${top.id}.json', top.toJson());
     }
-    // 清理不再存在的顶层文件
+    // 清理不再存在的顶层文件（含附件目录）
     final files = await store.listFiles(_dir);
     final ids = tree.map((t) => t.id).toSet();
     for (final f in files) {
       final id = f.replaceAll('.json', '');
-      if (!ids.contains(id)) await store.delete('$_dir/$f');
+      if (!ids.contains(id)) {
+        await store.delete('$_dir/$f');
+        await store.deleteDirectory('$_dir/$id/media');
+      }
+    }
+    // deleteItem 传入的已删除条目：其 JSON 在上一轮已不在文件列表中，
+    // 这里同样清理附件目录
+    for (final id in removedIds) {
+      await store.deleteDirectory('$_dir/$id/media');
     }
     ref.invalidateSelf();
   }
+
+  /// 清理回收站：彻底删除「已完成 / 已归档」且最后更新早于 [before] 的顶层条目。
+  ///
+  /// [before] 为 null 表示清空整个回收站（不限时间）。
+  /// 返回被删除的条数。附件目录一并清理，避免留下孤立附件。
+  Future<int> purgeTrash({DateTime? before}) async {
+    final tree = await _treeOrLoad();
+    final victims = purgedItemIds(tree, before: before);
+    if (victims.isEmpty) return 0;
+    final victimSet = victims.toSet();
+    final kept = tree.where((e) => !victimSet.contains(e.id)).toList();
+    await _persist(kept, removedIds: victims);
+    return victims.length;
+  }
+}
+
+/// 算出应被清出回收站的顶层条目 id（纯函数，便于单元测试）。
+///
+/// 规则：只清理状态为 `done` 或 `archived` 的**顶层**条目；
+/// `before` 不为空时还要求 `updatedAt` 早于它。`pending` 的条目永不清理。
+List<String> purgedItemIds(List<TodoItem> tree, {DateTime? before}) {
+  return [
+    for (final e in tree)
+      if ((e.status == TodoStatus.done || e.status == TodoStatus.archived) &&
+          (before == null || e.updatedAt.isBefore(before)))
+        e.id,
+  ];
 }
 
 final todoListProvider =

@@ -304,10 +304,24 @@ class _MonthViewState extends ConsumerState<MonthView> {
 
   @override
   Widget build(BuildContext context) {
-    // 内置节假日（当前显示月份的年份）
-    final holidays =
-        ref.watch(holidayListProvider(_month.year)).valueOrNull ??
-        const <SpecialDay>[];
+    // 内置节假日（当前显示月份的年份 + 下一年）。
+    //
+    // 必须带上「下一年」：12 月视图的网格会把次年 1 月的日期一并渲染，
+    // 否则那些格子不会显示元旦/春节之类的节日。
+    //
+    // 同时必须去重：除夕是用「该年最后一天是否仍在农历十二月」推出来的，
+    // 所以同一个除夕会被相邻两年各生成一次（如 2025-01-28 同时出现在
+    // 2024 与 2025 两份列表里，且两侧 id 不同、按 id 去重无效）。
+    // 这里按「名称 + 日期」去重，避免同一格子叠出两个节日。
+    final holidays = <SpecialDay>[];
+    final seenHolidayKeys = <String>{};
+    for (final y in [_month.year, _month.year + 1]) {
+      final list =
+          ref.watch(holidayListProvider(y)).valueOrNull ?? const <SpecialDay>[];
+      for (final h in list) {
+        if (seenHolidayKeys.add('${h.name}|${h.date}')) holidays.add(h);
+      }
+    }
     return Column(
       children: [
         // 月份导航

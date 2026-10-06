@@ -139,7 +139,9 @@ class TextExporter {
     }
     b.write('\n');
     if (t.contentPlain.trim().isNotEmpty) {
-      b.write('$indent  ${t.contentPlain.trim().replaceAll('\n', '\n$indent  ')}\n');
+      b.write(
+        '$indent  ${t.contentPlain.trim().replaceAll('\n', '\n$indent  ')}\n',
+      );
     }
     if (t.media.isNotEmpty) {
       b.write(
@@ -157,7 +159,13 @@ class TextExporter {
         return '每天';
       case HabitFrequency.weekly:
         const names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-        return '每周 ${h.weekdays.map((d) => names[d - 1]).join('/')}';
+        // 容错：数据损坏时 weekdays 可能含越界值，直接下标会抛 RangeError；
+        // 这里只保留 1..7 的合法值，避免一个坏习惯导致整份导出失败
+        final days = h.weekdays
+            .where((d) => d >= 1 && d <= 7)
+            .map((d) => names[d - 1])
+            .join('/');
+        return days.isEmpty ? '每周（未指定）' : '每周 $days';
       case HabitFrequency.interval:
         return '每 ${h.intervalDays} 天';
       case HabitFrequency.weeklyTimes:
@@ -228,10 +236,14 @@ class TextExporter {
       return b.toString();
     }
     const weekdayNames = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    // 容错：与 `habit_page.dart` 的 `_weekdayName` 保持一致，
+    // 越界的 weekday 不直接下标，避免 RangeError 中断整份导出
+    String weekdayName(int d) => (d >= 1 && d <= 7) ? weekdayNames[d] : '';
     for (final c in courses) {
       b.write('## ${c.name}\n');
+      final day = weekdayName(c.weekday);
       b.write(
-        '- ${weekdayNames[c.weekday]} ${c.startTime}-${c.endTime} ${c.classroom}\n',
+        '- ${day.isEmpty ? '' : '$day '}${c.startTime}-${c.endTime} ${c.classroom}\n',
       );
       if (c.teacher.isNotEmpty) b.write('- 教师：${c.teacher}\n');
       if (c.weeks.isNotEmpty) b.write('- 周次：${c.weeks.join(', ')}\n');

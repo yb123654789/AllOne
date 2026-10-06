@@ -68,6 +68,9 @@ dependencies:
 
   # 课程表照片识别（OCR，本地离线，仅 Android/iOS）
   google_mlkit_text_recognition: ^0.13.0
+  syncfusion_flutter_pdf: ^34.2.8
+  fast_gbk: ^1.0.0
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:

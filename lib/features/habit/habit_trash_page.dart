@@ -96,10 +96,7 @@ class _TrashTile extends ConsumerWidget {
             ),
             IconButton(
               tooltip: '彻底删除',
-              icon: const Icon(
-                Icons.delete_forever,
-                color: AppTheme.danger,
-              ),
+              icon: const Icon(Icons.delete_forever, color: AppTheme.danger),
               onPressed: () => _confirmDelete(context, ref),
             ),
           ],

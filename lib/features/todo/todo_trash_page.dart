@@ -9,16 +9,111 @@ import 'todo_repository.dart';
 class TodoTrashPage extends ConsumerWidget {
   const TodoTrashPage({super.key});
 
+  /// 按时间清理回收站：先让用户选时间范围，再确认并删除。
+  Future<void> _purge(
+    BuildContext context,
+    WidgetRef ref,
+    List<TodoItem> all,
+  ) async {
+    // 预设：N 天前之前的一律清除
+    final choices = <String, int?>{
+      '保留最近 7 天': 7,
+      '保留最近 30 天': 30,
+      '保留最近 90 天': 90,
+      '清空回收站': null,
+    };
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('清理回收站'),
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text(
+              '将「彻底删除」所选时间之前的已完成 / 已归档待办（含附件），'
+              '此操作不可恢复。',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ),
+          for (final e in choices.entries)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, e.key),
+              child: Text(e.key),
+            ),
+        ],
+      ),
+    );
+    if (picked == null || !context.mounted) return;
+
+    final days = choices[picked];
+    final before = days == null
+        ? null
+        : DateTime.now().subtract(Duration(days: days));
+    final count = purgedItemIds(all, before: before).length;
+    if (count == 0) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('该范围内没有可清理的条目')));
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('确认清理'),
+        content: Text(
+          days == null
+              ? '将彻底删除回收站中全部 $count 条待办（含附件），无法恢复。确定吗？'
+              : '将彻底删除 $days 天前及更早的 $count 条待办（含附件），无法恢复。确定吗？',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
+            child: const Text('彻底删除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final removed = await ref
+        .read(todoListProvider.notifier)
+        .purgeTrash(before: before);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('已清理 $removed 条')));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(todoListProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('回收站')),
+      appBar: AppBar(
+        title: const Text('回收站'),
+        actions: [
+          async.maybeWhen(
+            data: (items) => IconButton(
+              tooltip: '清理回收站（按时间）',
+              icon: const Icon(Icons.cleaning_services_outlined),
+              onPressed:
+                  (items.any(
+                    (e) =>
+                        e.status == TodoStatus.done ||
+                        e.status == TodoStatus.archived,
+                  ))
+                  ? () => _purge(context, ref, items)
+                  : null,
+            ),
+            orElse: () => const SizedBox.shrink(),
+          ),
+        ],
+      ),
       body: async.when(
         data: (items) {
-          final done = items
-              .where((e) => e.status == TodoStatus.done)
-              .toList();
+          final done = items.where((e) => e.status == TodoStatus.done).toList();
           final trashed = items
               .where((e) => e.status == TodoStatus.archived)
               .toList();
@@ -34,8 +129,12 @@ class TodoTrashPage extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
               if (done.isNotEmpty) ...[
-                const _SectionHeader(icon: Icons.check_circle_outline, text: '已完成'),
-                for (final e in done) _TrashTile(item: e, kind: _TrashKind.done),
+                const _SectionHeader(
+                  icon: Icons.check_circle_outline,
+                  text: '已完成',
+                ),
+                for (final e in done)
+                  _TrashTile(item: e, kind: _TrashKind.done),
               ],
               if (trashed.isNotEmpty) ...[
                 const _SectionHeader(icon: Icons.archive_outlined, text: '已归档'),
@@ -68,10 +167,7 @@ class _SectionHeader extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppTheme.textSecondary,
-            ),
+            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
           ),
         ],
       ),
@@ -140,10 +236,7 @@ class _TrashTile extends ConsumerWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(fontSize: 12),
-        ),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -155,10 +248,7 @@ class _TrashTile extends ConsumerWidget {
             ),
             IconButton(
               tooltip: '彻底删除',
-              icon: const Icon(
-                Icons.delete_forever,
-                color: AppTheme.danger,
-              ),
+              icon: const Icon(Icons.delete_forever, color: AppTheme.danger),
               onPressed: () => _confirmDelete(context, ref),
             ),
           ],

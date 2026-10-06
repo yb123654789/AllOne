@@ -164,16 +164,19 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
       _recording = false;
       if (path != null) {
         final f = File(path);
-        final len = await f.length();
         final store = await ref.read(jsonStoreProvider.future);
         final dir = Directory(p.join(store.root.path, habitMediaDir(_id)));
-        final name = await MediaUtils.copyToDir(f, dir);
-        if (name != null && mounted) {
-          setState(
-            () => _media.add(
-              MediaAttachment(type: MediaType.audio, file: name, size: len),
-            ),
-          );
+        // 先确认文件存在并取到长度，再复制，避免留下未登记的孤立文件
+        if (await f.exists()) {
+          final len = await f.length();
+          final name = await MediaUtils.copyToDir(f, dir);
+          if (name != null && mounted) {
+            setState(
+              () => _media.add(
+                MediaAttachment(type: MediaType.audio, file: name, size: len),
+              ),
+            );
+          }
         }
       }
       if (mounted) setState(() {});
@@ -189,10 +192,14 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
     final store = await ref.read(jsonStoreProvider.future);
     final dir = Directory(p.join(store.root.path, habitMediaDir(_id)));
     if (!await dir.exists()) await dir.create(recursive: true);
-    await MediaUtils.startRecording(
+    final started = await MediaUtils.startRecording(
       p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}_rec.m4a'),
     );
-    _recording = true;
+    _recording = started;
+    if (!started && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('录音启动失败，请检查麦克风权限')));
+    }
     if (mounted) setState(() {});
   }
 
@@ -206,7 +213,8 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
 
   /// 从已有标签中检索复用（支持模糊搜索）
   Future<void> _showTagPicker() async {
-    final allTags = ref
+    final allTags =
+        ref
             .read(habitListProvider)
             .valueOrNull
             ?.expand((h) => h.tags)
@@ -217,7 +225,13 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
       allTags: allTags.toList(),
       initial: List.of(_tags),
     );
-    if (result != null) setState(() => _tags..clear()..addAll(result));
+    if (result != null) {
+      setState(
+        () => _tags
+          ..clear()
+          ..addAll(result),
+      );
+    }
   }
 
   /// —— 频率配置区 ——
@@ -265,17 +279,13 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
           TextField(
             controller: _intervalDaysCtrl,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '每隔多少天打卡一次（如：3）',
-            ),
+            decoration: const InputDecoration(labelText: '每隔多少天打卡一次（如：3）'),
           ),
         if (_frequency == HabitFrequency.weeklyTimes)
           TextField(
             controller: _weeklyTimesCtrl,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '每周累计打卡多少次（如：3）',
-            ),
+            decoration: const InputDecoration(labelText: '每周累计打卡多少次（如：3）'),
           ),
         if (_frequency == HabitFrequency.daily)
           const Text(
@@ -308,17 +318,13 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
           TextField(
             controller: _dailyTargetCtrl,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '每天需累计多少次 / 多少量（如：8）',
-            ),
+            decoration: const InputDecoration(labelText: '每天需累计多少次 / 多少量（如：8）'),
           ),
         if (_dailyTarget == HabitDailyTarget.minutes)
           TextField(
             controller: _dailyTargetCtrl,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '每天需累计多少分钟（如：30）',
-            ),
+            decoration: const InputDecoration(labelText: '每天需累计多少分钟（如：30）'),
           ),
         if (_dailyTarget == HabitDailyTarget.once)
           const Text(
@@ -338,22 +344,10 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
         const SizedBox(height: 6),
         SegmentedButton<HabitPersistence>(
           segments: const [
-            ButtonSegment(
-              value: HabitPersistence.unlimited,
-              label: Text('不限'),
-            ),
-            ButtonSegment(
-              value: HabitPersistence.days,
-              label: Text('坚持 N 天'),
-            ),
-            ButtonSegment(
-              value: HabitPersistence.times,
-              label: Text('累计 N 次'),
-            ),
-            ButtonSegment(
-              value: HabitPersistence.cycles,
-              label: Text('循环周期'),
-            ),
+            ButtonSegment(value: HabitPersistence.unlimited, label: Text('不限')),
+            ButtonSegment(value: HabitPersistence.days, label: Text('坚持 N 天')),
+            ButtonSegment(value: HabitPersistence.times, label: Text('累计 N 次')),
+            ButtonSegment(value: HabitPersistence.cycles, label: Text('循环周期')),
           ],
           selected: {_persistence},
           onSelectionChanged: (s) => setState(() => _persistence = s.first),
@@ -364,17 +358,13 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
           TextField(
             controller: _persistenceCtrl,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '坚持多少天（如：21）',
-            ),
+            decoration: const InputDecoration(labelText: '坚持多少天（如：21）'),
           ),
         if (_persistence == HabitPersistence.times)
           TextField(
             controller: _persistenceCtrl,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '累计打卡多少次（如：100）',
-            ),
+            decoration: const InputDecoration(labelText: '累计打卡多少次（如：100）'),
           ),
         if (_persistence == HabitPersistence.cycles)
           TextField(

@@ -86,6 +86,65 @@ class JsonStore {
     } catch (_) {}
   }
 
+  /// 原子写入二进制文件（自动创建父目录）。
+  ///
+  /// 用于把附件（例如从 PDF 里抽出的照片）落盘；
+  /// 与 [write] 一样先写 `.tmp` 再替换，避免写一半留下坏文件。
+  Future<void> writeBytes(String relativePath, List<int> bytes) async {
+    final file = File('${root.path}${Platform.pathSeparator}$relativePath');
+    await file.parent.create(recursive: true);
+    final tmp = File('${file.path}.tmp');
+    await tmp.writeAsBytes(bytes, flush: true);
+    if (await file.exists()) await file.delete();
+    await tmp.rename(file.path);
+  }
+
+  /// 递归删除一个目录（用于删除条目时一并清理其附件目录）。
+  ///
+  /// 目录不存在时静默成功（幂等）；删除失败不抛出，避免影响主流程。
+  /// 例：`deleteDirectory('todo/items/$id/media')`。
+  Future<void> deleteDirectory(String relativeDir) async {
+    final dir = Directory('${root.path}${Platform.pathSeparator}$relativeDir');
+    try {
+      if (await dir.exists()) await dir.delete(recursive: true);
+    } catch (_) {
+      // 容错：与 delete() 一致，删除失败静默
+    }
+  }
+
+  /// 删除某目录下所有以 [prefix] 开头的文件（只删文件，不动子目录），
+  /// 全部删光后清理该空目录。
+  ///
+  /// 用于「扁平命名、同一实体占多个文件」的场景，
+  /// 例如记账流水 `ledger/transactions/<accountId>_<yyyy-MM>.json`
+  /// 在删除账户时需要按 `<accountId>_` 前缀一并清理。
+  ///
+  /// 返回实际删除的文件数；目录不存在或失败时静默（不抛出）。
+  Future<int> deleteFilesWithPrefix(String relativeDir, String prefix) async {
+    final dir = Directory('${root.path}${Platform.pathSeparator}$relativeDir');
+    var removed = 0;
+    try {
+      if (!await dir.exists()) return 0;
+      await for (final e in dir.list()) {
+        if (e is! File) continue;
+        final name = e.path.split(Platform.pathSeparator).last;
+        if (!name.startsWith(prefix)) continue;
+        try {
+          await e.delete();
+          removed++;
+        } catch (_) {
+          // 单个文件删除失败不影响其余
+        }
+      }
+      if (removed > 0 && await dir.list().isEmpty) {
+        await dir.delete();
+      }
+    } catch (_) {
+      // 容错：与 delete() 一致，删除失败静默
+    }
+    return removed;
+  }
+
   /// 列出某目录下的文件（不含 .tmp）。
   Future<List<String>> listFiles(
     String relativeDir, {

@@ -63,18 +63,28 @@ const List<AppFeature> kAppFeatures = [
   ),
 ];
 
-/// 导航可见性配置：控制各功能是否显示在**底部导航栏**。
-/// 未配置的项默认显示（`isBottomBarVisible` 返回 true）。
+/// 导航与地图等通用设置。
 class NavSettings {
   /// 是否显示在底部导航栏（底边栏）
   final Map<String, bool> bottomBarVisible;
 
-  const NavSettings({
-    this.bottomBarVisible = const {},
-  });
+  /// 地图底图瓦片源 id（见 core/widgets/tile_sources.dart）。
+  /// 空 = 用默认源（Esri）。之所以可配置：OSM 官方瓦片在国内常连不上，
+  /// 不同网络环境下可用的源不同。
+  final String mapSource;
+
+  const NavSettings({this.bottomBarVisible = const {}, this.mapSource = ''});
 
   /// 功能是否显示在底部导航栏
   bool isBottomBarVisible(String key) => bottomBarVisible[key] ?? true;
+
+  NavSettings copyWith({
+    Map<String, bool>? bottomBarVisible,
+    String? mapSource,
+  }) => NavSettings(
+    bottomBarVisible: bottomBarVisible ?? this.bottomBarVisible,
+    mapSource: mapSource ?? this.mapSource,
+  );
 
   factory NavSettings.fromJson(Map<String, dynamic>? j) {
     if (j == null) return const NavSettings();
@@ -82,19 +92,24 @@ class NavSettings {
     (j['bottomBarVisible'] as Map?)?.forEach((k, v) {
       if (v is bool) bottom[k.toString()] = v;
     });
-    return NavSettings(bottomBarVisible: bottom);
+    return NavSettings(
+      bottomBarVisible: bottom,
+      mapSource: j['mapSource'] as String? ?? '',
+    );
   }
 
   Map<String, dynamic> toJson() => {
-        'bottomBarVisible': bottomBarVisible,
-      };
+    'bottomBarVisible': bottomBarVisible,
+    'mapSource': mapSource,
+  };
 }
 
 /// 底部导航栏可见功能列表（按 [NavSettings] 过滤，顺序保持 [kAppFeatures]）。
 /// 「工具」恒显示：它是备份 / 模板 / 设置等功能的唯一入口，防止误关后无法进入。
 List<AppFeature> bottomBarFeatures(NavSettings nav) {
-  final features =
-      kAppFeatures.where((f) => nav.isBottomBarVisible(f.key)).toList();
+  final features = kAppFeatures
+      .where((f) => nav.isBottomBarVisible(f.key))
+      .toList();
   if (!features.any((f) => f.key == 'tools')) {
     features.add(kAppFeatures.firstWhere((f) => f.key == 'tools'));
   }

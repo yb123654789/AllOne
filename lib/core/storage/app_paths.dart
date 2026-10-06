@@ -32,16 +32,21 @@ class AppPaths {
     return dir;
   }
 
-  /// 生成一个条目 ID：yyyyMMddHHmmss-XXXX
+  /// 进程内自增计数：Windows 上 `DateTime.now()` 精度约 1ms，
+  /// 批量创建（如导入）时同一毫秒内多次调用会得到相同的微秒值，
+  /// 叠加计数可保证同一进程内生成的 ID 不重复。
+  static int _seq = 0;
+
+  /// 生成一个条目 ID：yyyyMMddHHmmss-XXXXX
   static String newId() {
     final now = DateTime.now();
     String two(int n) => n.toString().padLeft(2, '0');
     final ts =
         '${now.year}${two(now.month)}${two(now.day)}'
         '${two(now.hour)}${two(now.minute)}${two(now.second)}';
-    final rand = (DateTime.now().microsecondsSinceEpoch % 100000)
-        .toString()
-        .padLeft(5, '0');
-    return '$ts-$rand';
+    final rand =
+        ((now.microsecondsSinceEpoch % 100000) + (_seq++ % 100000) * 7919) %
+        100000;
+    return '$ts-${rand.toString().padLeft(5, '0')}';
   }
 }

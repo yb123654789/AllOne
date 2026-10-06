@@ -35,35 +35,60 @@ class MediaUtils {
   }
 
   // —— 录音 ——
+
+  /// 全局唯一的录音器实例。
+  ///
+  /// **必须复用同一个实例**：`record` 插件的录音状态保存在实例内部，
+  /// 若 [startRecording] 与 [stopRecording] 各自 new 一个 [AudioRecorder]，
+  /// 那么 stop 操作的是另一个"从未开始录音"的对象，会返回 null，
+  /// 于是这段录音既不会被登记为附件、也拿不到文件路径，
+  /// 却仍在后台持续写入 —— 最终留下体积巨大、界面里看不到的孤立录音文件
+  /// （真实数据中曾出现两段各 500+ MB 的 `*_rec.m4a`）。
+  static AudioRecorder? _recorder;
+
+  static AudioRecorder get _rec {
+    final r = _recorder;
+    if (r != null) return r;
+    final created = AudioRecorder();
+    _recorder = created;
+    return created;
+  }
+
   static Future<bool> requestMicPermission() async {
     final s = await Permission.microphone.request();
     return s.isGranted;
   }
 
-  /// 开始录音到指定路径
-  static Future<void> startRecording(String path) async {
-    final recorder = AudioRecorder();
-    if (!await recorder.hasPermission()) return;
-    await recorder.start(
+  /// 开始录音到指定路径。返回是否真正开始（无权限时返回 false）。
+  static Future<bool> startRecording(String path) async {
+    if (!await _rec.hasPermission()) return false;
+    await _rec.start(
       const RecordConfig(encoder: AudioEncoder.aacLc),
       path: path,
     );
+    return true;
   }
 
-  /// 停止录音，返回文件路径
-  static Future<String?> stopRecording() async {
-    final recorder = AudioRecorder();
-    return recorder.stop();
-  }
+  /// 停止录音，返回文件路径（未在录音时返回 null）
+  static Future<String?> stopRecording() => _rec.stop();
 
-  static Future<bool> isRecording() async {
-    final recorder = AudioRecorder();
-    return recorder.isRecording();
-  }
+  static Future<bool> isRecording() => _rec.isRecording();
 
   // —— 播放 ——
+
+  /// 全局唯一的播放器实例（避免每次播放都新建、导致无法暂停/停止）
+  static AudioPlayer? _player;
+
+  static AudioPlayer get _play {
+    final p = _player;
+    if (p != null) return p;
+    final created = AudioPlayer();
+    _player = created;
+    return created;
+  }
+
   static Future<void> playAudio(String path) async {
-    final player = AudioPlayer();
-    await player.play(DeviceFileSource(path));
+    await _play.stop();
+    await _play.play(DeviceFileSource(path));
   }
 }

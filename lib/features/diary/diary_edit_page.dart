@@ -383,16 +383,19 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
       _recording = false;
       if (path != null) {
         final f = File(path);
-        final size = await f.length();
         final store = await ref.read(jsonStoreProvider.future);
         final dir = Directory(p.join(store.root.path, diaryMediaDir(_entryId)));
-        final name = await MediaUtils.copyToDir(f, dir);
-        if (name != null && mounted) {
-          setState(
-            () => _media.add(
-              MediaAttachment(type: MediaType.audio, file: name, size: size),
-            ),
-          );
+        // 先确认文件存在并取到长度，再复制，避免留下未登记的孤立文件
+        if (await f.exists()) {
+          final size = await f.length();
+          final name = await MediaUtils.copyToDir(f, dir);
+          if (name != null && mounted) {
+            setState(
+              () => _media.add(
+                MediaAttachment(type: MediaType.audio, file: name, size: size),
+              ),
+            );
+          }
         }
       }
       if (mounted) setState(() {});
@@ -412,8 +415,12 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
       dir.path,
       '${DateTime.now().millisecondsSinceEpoch}_rec.m4a',
     );
-    await MediaUtils.startRecording(path);
-    _recording = true;
+    final started = await MediaUtils.startRecording(path);
+    _recording = started;
+    if (!started && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('录音启动失败，请检查麦克风权限')));
+    }
     if (mounted) setState(() {});
   }
 
@@ -421,7 +428,8 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
 
   Future<void> _showTagDialog() async {
     // 收集全部已有标签（含各日记），支持模糊搜索复用
-    final allTags = ref
+    final allTags =
+        ref
             .read(diaryListProvider)
             .valueOrNull
             ?.expand((e) => e.tags)
@@ -433,7 +441,13 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
       initial: List.of(_tags),
       title: '标签戳',
     );
-    if (result != null) setState(() => _tags..clear()..addAll(result));
+    if (result != null) {
+      setState(
+        () => _tags
+          ..clear()
+          ..addAll(result),
+      );
+    }
   }
 
   void _showTimeStampDialog() {

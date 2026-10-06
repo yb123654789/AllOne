@@ -7,8 +7,15 @@
 - **框架**：Flutter（一套 Dart 代码覆盖 Android / Windows / iOS）
 - **状态管理**：Riverpod（成熟、可测试、模块化）
 - **本地存储**：文件系统 + JSON（格式通用、可 U 盘直接备份），配以内存索引
-- **离线地图**：`flutter_map` + 本地瓦片（离线地图方案）
+- **地图**：`flutter_map` + `latlong2`；**底图源可选**（见 `lib/core/widgets/tile_sources.dart`，
+  默认 Esri）；本地 `AllOneData/map_tiles/` 有瓦片时优先读取
+- **定位**：`geolocator`（系统定位 / 手机 GPS，**不依赖网络**），见 `lib/core/utils/location_service.dart`
+- **外部日记导入**：`syncfusion_flutter_pdf`（文本型 PDF 提取 + 内嵌照片抽取）+ `fast_gbk`（GBK/GB2312 txt 解码），与 file_picker 配合
 - **数据库（可选索引）**：Drift/SQLite（仅用于加速检索，不作为唯一存储）
+
+> **底图源为什么要可切换**：`tile.openstreetmap.org` 等境外源在国内常被 DNS 污染 /
+> 直连超时，地图会**整块空白**（看着像 bug，实际是网络）。
+> 实测本机未开代理时 OSM / Carto / OpenTopoMap 全部超时，Esri / 高德 / 腾讯正常。
 
 ## 2. 模块化分层
 
@@ -58,7 +65,7 @@ AllOne/
 │   │   ├── backup/               # 备份/恢复引擎
 │   │   └── utils/                # 工具（日期、文件大小、加密）
 │   ├── features/
-│   │   ├── diary/                # 日记模块（双模式编辑、模板、三戳、附件）
+│   │   ├── diary/                # 日记模块（纯文本编辑、模板、三戳、附件、外部 txt/PDF 导入）
 │   │   ├── todo/                 # 待办模块（树形待办、模板、附件）
 │   │   ├── habit/                # 习惯模块（双模式描述、附件）
 │   │   ├── schedule/             # 课程表模块

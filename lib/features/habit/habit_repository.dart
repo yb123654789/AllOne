@@ -50,6 +50,8 @@ class HabitListNotifier extends AsyncNotifier<List<Habit>> {
     final store = await ref.read(jsonStoreProvider.future);
     await store.delete('$_dir/$id.json');
     await store.delete('habit/checkins/$id.json');
+    // 清理该习惯的附件目录，避免残留孤立附件
+    await store.deleteDirectory(habitMediaDir(id));
     ref.invalidateSelf();
   }
 }
@@ -72,11 +74,7 @@ class HabitCheckinNotifier extends AsyncNotifier<Map<String, CheckinMap>> {
   }
 
   /// 打卡：本次累加 [amount]（数量 / 分钟）。当天目标为「一次即完成」时用 1。
-  Future<void> checkin(
-    String habitId,
-    String date, {
-    int amount = 1,
-  }) async {
+  Future<void> checkin(String habitId, String date, {int amount = 1}) async {
     final store = await ref.read(jsonStoreProvider.future);
     final current = state.valueOrNull?[habitId] ?? const CheckinMap();
     final entries = Map<String, int>.from(current.entries);

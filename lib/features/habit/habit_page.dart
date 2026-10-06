@@ -19,7 +19,7 @@ class HabitPage extends ConsumerStatefulWidget {
 
 class _HabitPageState extends ConsumerState<HabitPage> {
   /// 多标签交叉筛选（AND：必须同时包含全部所选标签）
-  Set<String> _filterTags = {};
+  final Set<String> _filterTags = {};
 
   @override
   Widget build(BuildContext context) {
@@ -50,9 +50,8 @@ class _HabitPageState extends ConsumerState<HabitPage> {
       ),
       body: habitsAsync.when(
         data: (habits) => checkinAsync.when(
-          data: (checkins) => habits.isEmpty
-              ? _empty()
-              : _list(context, ref, habits, checkins),
+          data: (checkins) =>
+              habits.isEmpty ? _empty() : _list(context, ref, habits, checkins),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('加载失败：$e')),
         ),
@@ -93,7 +92,9 @@ class _HabitPageState extends ConsumerState<HabitPage> {
   ) {
     // 过滤掉已归档的；对「坚持周期达成」的进行自动归档（在 build 后延迟触发）
     final filtered = habits
-        .where((h) => !h.archived && _filterTags.every((t) => h.tags.contains(t)))
+        .where(
+          (h) => !h.archived && _filterTags.every((t) => h.tags.contains(t)),
+        )
         .toList();
     // 自动归档：达成目标（非不限/非循环且进度>=1）的习惯移入回收站
     for (final h in filtered) {
@@ -130,7 +131,6 @@ class _HabitPageState extends ConsumerState<HabitPage> {
         h.persistence == HabitPersistence.cycles) {
       return false;
     }
-    final today = AppTime.dateOnly(DateTime.now());
     bool met(String d) => cm.dayMet(d, h.dailyTarget, h.dailyTargetValue);
     final doneDays = cm.entries.keys.where(met).length;
     final doneTotal = cm.totalCount;
@@ -180,7 +180,8 @@ class _HabitPageState extends ConsumerState<HabitPage> {
 
   /// 多标签交叉筛选对话框
   Future<void> _showTagFilterDialog() async {
-    final allTags = ref
+    final allTags =
+        ref
             .read(habitListProvider)
             .valueOrNull
             ?.expand((h) => h.tags)
@@ -191,7 +192,13 @@ class _HabitPageState extends ConsumerState<HabitPage> {
       allTags: allTags.toList(),
       initial: Set.of(_filterTags),
     );
-    if (result != null) setState(() => _filterTags..clear()..addAll(result));
+    if (result != null) {
+      setState(
+        () => _filterTags
+          ..clear()
+          ..addAll(result),
+      );
+    }
   }
 
   /// 依据坚持周期计算进度 (0.0~1.0) 与展示文案。
@@ -216,10 +223,7 @@ class _HabitPageState extends ConsumerState<HabitPage> {
         // 每轮 pv 天，计算已完成的完整轮数 + 本轮进度
         final p = pv <= 0 ? 0.0 : (doneDays % pv) / pv;
         final rounds = pv <= 0 ? 0 : doneDays ~/ pv;
-        return (
-          p,
-          '第 ${rounds + 1} 轮 · 本轮 ${doneDays % pv}/$pv 天',
-        );
+        return (p, '第 ${rounds + 1} 轮 · 本轮 ${doneDays % pv}/$pv 天');
     }
   }
 
@@ -243,12 +247,7 @@ class _HabitPageState extends ConsumerState<HabitPage> {
     return (d >= 1 && d <= 7) ? names[d - 1] : '?';
   }
 
-  Widget _card(
-    BuildContext context,
-    WidgetRef ref,
-    Habit h,
-    CheckinMap cm,
-  ) {
+  Widget _card(BuildContext context, WidgetRef ref, Habit h, CheckinMap cm) {
     final today = AppTime.dateOnly(DateTime.now());
     final doneToday = cm.isDone(today);
     final failedToday = cm.isFailed(today);
@@ -258,7 +257,12 @@ class _HabitPageState extends ConsumerState<HabitPage> {
     final doneDays = cm.entries.keys.where(met).length;
     final doneTotal = cm.totalCount;
     // 持久周期进度
-    final (progress, progressText) = _persistenceProgress(h, cm, doneDays, doneTotal);
+    final (progress, progressText) = _persistenceProgress(
+      h,
+      cm,
+      doneDays,
+      doneTotal,
+    );
     // 频率说明
     final freqText = _frequencyText(h);
     return Card(
@@ -337,7 +341,10 @@ class _HabitPageState extends ConsumerState<HabitPage> {
                   const SizedBox(width: 8),
                   Text(
                     '连续 ${cm.streakDays(DateTime.now(), isMet: met)} 天',
-                    style: const TextStyle(fontSize: 12, color: AppTheme.primary),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.primary,
+                    ),
                   ),
                 ],
               ),
@@ -424,7 +431,9 @@ class _HabitPageState extends ConsumerState<HabitPage> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('删除习惯'),
-          content: Text('将永久删除「${h.title.isEmpty ? '未命名习惯' : h.title}」及其全部打卡记录，无法恢复。确定吗？'),
+          content: Text(
+            '将永久删除「${h.title.isEmpty ? '未命名习惯' : h.title}」及其全部打卡记录，无法恢复。确定吗？',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -562,7 +571,7 @@ class _HabitPageState extends ConsumerState<HabitPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                '当天目标：累计 ${targetValue} $unit',
+                '当天目标：累计 $targetValue $unit',
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppTheme.textSecondary,

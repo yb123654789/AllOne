@@ -10,6 +10,7 @@ import '../../core/models/nav_settings.dart';
 import '../../core/storage/app_paths.dart';
 import '../../core/storage/nav_providers.dart';
 import '../../core/theme.dart';
+import '../diary/diary_import_page.dart';
 import '../diary/diary_templates_page.dart';
 import '../settings/settings_page.dart';
 import '../settings/text_exporter.dart';
@@ -125,10 +126,9 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
     setState(() => _busy = true);
     try {
       final zipPath = await TextExporter.exportText(ref);
-      await Share.shareXFiles(
-        [XFile(zipPath)],
-        text: 'AllOne 通用文本导出（Markdown / txt，可用记事本打开）',
-      );
+      await Share.shareXFiles([
+        XFile(zipPath),
+      ], text: 'AllOne 通用文本导出（Markdown / txt，可用记事本打开）');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -176,7 +176,11 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
               Text(
                 '数据完全本地保存、格式通用（JSON / 纯文本），'
                 '支持 U 盘手动备份，信息安全第一、运行稳定、模块化风险隔离。',
-                style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.5),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
               ),
               SizedBox(height: 12),
               Text(
@@ -289,6 +293,27 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
                 const Divider(),
                 ListTile(
                   leading: const Icon(
+                    Icons.file_upload_outlined,
+                    color: AppTheme.primary,
+                  ),
+                  title: const Text('导入外部日记'),
+                  subtitle: const Text(
+                    '把之前在其他软件写的日记（txt / PDF）导入，按日期自动分篇，'
+                    '只新增、不覆盖现有日记',
+                  ),
+                  isThreeLine: true,
+                  onTap: _busy
+                      ? null
+                      : () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DiaryImportPage(),
+                          ),
+                        ),
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(
                     Icons.settings_backup_restore,
                     color: AppTheme.danger,
                   ),
@@ -315,13 +340,19 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
                 ),
                 const Divider(),
                 ListTile(
-                  leading: const Icon(Icons.data_usage, color: AppTheme.primary),
+                  leading: const Icon(
+                    Icons.data_usage,
+                    color: AppTheme.primary,
+                  ),
                   title: const Text('当前数据大小'),
                   subtitle: Text(_sizeText.isEmpty ? '加载中…' : _sizeText),
                 ),
                 const Divider(),
                 ListTile(
-                  leading: const Icon(Icons.shield_outlined, color: AppTheme.primary),
+                  leading: const Icon(
+                    Icons.shield_outlined,
+                    color: AppTheme.primary,
+                  ),
                   title: const Text('数据与程序分离'),
                   subtitle: const Text(
                     '所有数据保存在系统「文档」目录的 AllOneData 文件夹，'
@@ -345,7 +376,9 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
                   subtitle: const Text('管理写日记时一键套用的模板'),
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const DiaryTemplatesPage()),
+                    MaterialPageRoute(
+                      builder: (_) => const DiaryTemplatesPage(),
+                    ),
                   ),
                 ),
                 const Divider(),
@@ -355,7 +388,9 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
                   subtitle: const Text('管理「内容 + 截止 + 地点 + 标签」一键套用模板'),
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const TodoTemplatesPage()),
+                    MaterialPageRoute(
+                      builder: (_) => const TodoTemplatesPage(),
+                    ),
                   ),
                 ),
               ],
@@ -366,7 +401,10 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.info_outline, color: AppTheme.primary),
+                  leading: const Icon(
+                    Icons.info_outline,
+                    color: AppTheme.primary,
+                  ),
                   title: const Text('关于 AllOne'),
                   subtitle: const Text('项目介绍、常用入口说明'),
                   onTap: _showAbout,
@@ -399,7 +437,10 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
     final current = ref.watch(homeTabProvider);
     final active = current == f.key;
     return ListTile(
-      leading: Icon(active ? f.selectedIcon : f.icon, color: active ? AppTheme.primary : null),
+      leading: Icon(
+        active ? f.selectedIcon : f.icon,
+        color: active ? AppTheme.primary : null,
+      ),
       title: Text(
         f.label,
         style: active ? const TextStyle(color: AppTheme.primary) : null,
@@ -429,9 +470,8 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
           .where((f) => nav.isBottomBarVisible(f.key))
           .toList();
       if (visible.length <= 1 && visible.any((f) => f.key == key)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('底部导航至少需要保留一个功能')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('底部导航至少需要保留一个功能')));
         return;
       }
     }

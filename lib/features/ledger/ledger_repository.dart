@@ -25,9 +25,24 @@ class AccountListNotifier extends AsyncNotifier<List<LedgerAccount>> {
     ref.invalidateSelf();
   }
 
+  /// 删除账户，**并一并删除该账户的全部流水文件**。
+  ///
+  /// 流水文件是扁平命名的 `ledger/transactions/<accountId>_<yyyy-MM>.json`，
+  /// 而流水列表只加载「仍存在的账户」名下的文件（见 [TransactionListNotifier.build]）。
+  /// 因此若只删账户文件、不删流水，
+  /// 这些流水会变成**永远加载不出来、界面里也删不掉**的孤立文件
+  /// （与删除条目遗留附件是同一类问题）。
+  /// 界面上的确认弹窗已声明「相关流水也会一并删除」，这里必须真正落实。
   Future<void> deleteAccount(String id) async {
     final store = await ref.read(jsonStoreProvider.future);
+    // 先删流水，再删账户：即使中途失败，也不会留下"账户已没、流水还在"的中间态
+    await store.deleteFilesWithPrefix(TransactionListNotifier._dir, '${id}_');
     await store.delete('$_dir/$id.json');
+    // 只需刷新账户列表：TransactionListNotifier.build() 里 watch 了
+    // accountListProvider，账户集合一变它会自动重建。
+    // 这里**不要**再 invalidate(transactionListProvider) ——
+    // 那会形成 AccountListNotifier → transactionListProvider → accountListProvider
+    // 的循环依赖，Riverpod 会直接抛 CircularDependencyError。
     ref.invalidateSelf();
   }
 }

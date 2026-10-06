@@ -35,9 +35,8 @@ class _CourseOcrPageState extends State<CourseOcrPage> {
   void _confirm() {
     final r = _result;
     if (r == null || !r.usable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先选择图片并完成识别')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请先选择图片并完成识别')));
       return;
     }
     Navigator.pop(context, r);
@@ -63,10 +62,7 @@ class _CourseOcrPageState extends State<CourseOcrPage> {
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 16),
-                  Text(
-                    _error!,
-                    style: const TextStyle(color: AppTheme.danger),
-                  ),
+                  Text(_error!, style: const TextStyle(color: AppTheme.danger)),
                 ],
                 if (_result != null) ...[
                   const SizedBox(height: 20),
@@ -102,10 +98,7 @@ class _CourseOcrPageState extends State<CourseOcrPage> {
           children: const [
             Text(
               '拍照/选图识别课程信息（本地识别，不上传图片）',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
             SizedBox(height: 8),
             Text(
@@ -135,7 +128,10 @@ class _CourseOcrPageState extends State<CourseOcrPage> {
             const Divider(),
             Text(
               '原文：\n${r.rawText}',
-              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppTheme.textSecondary,
+              ),
             ),
           ],
         ),
@@ -153,7 +149,10 @@ class _CourseOcrPageState extends State<CourseOcrPage> {
             width: 60,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+              ),
             ),
           ),
           Expanded(

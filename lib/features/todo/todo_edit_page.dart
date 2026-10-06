@@ -23,6 +23,7 @@ Set<String> _collectAllTags(List<TodoItem> items) {
       walk(t.children);
     }
   }
+
   walk(items);
   return set;
 }
@@ -147,14 +148,17 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
         final f = File(path);
         final store = await ref.read(jsonStoreProvider.future);
         final dir = Directory(p.join(store.root.path, todoMediaDir(_itemId)));
-        final name = await MediaUtils.copyToDir(f, dir);
-        final len = await f.length();
-        if (name != null) {
-          setState(
-            () => _media.add(
-              MediaAttachment(type: MediaType.audio, file: name, size: len),
-            ),
-          );
+        // 先确认文件确实存在并取到长度，再复制，避免留下未登记的孤立文件
+        if (await f.exists()) {
+          final len = await f.length();
+          final name = await MediaUtils.copyToDir(f, dir);
+          if (name != null) {
+            setState(
+              () => _media.add(
+                MediaAttachment(type: MediaType.audio, file: name, size: len),
+              ),
+            );
+          }
         }
       }
       if (mounted) setState(() {});
@@ -170,10 +174,14 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
     final store = await ref.read(jsonStoreProvider.future);
     final dir = Directory(p.join(store.root.path, todoMediaDir(_itemId)));
     if (!await dir.exists()) await dir.create(recursive: true);
-    await MediaUtils.startRecording(
+    final started = await MediaUtils.startRecording(
       p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}_rec.m4a'),
     );
-    _recording = true;
+    _recording = started;
+    if (!started && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('录音启动失败，请检查麦克风权限')));
+    }
     if (mounted) setState(() {});
   }
 
@@ -599,14 +607,15 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialog) {
-          final candidates = allTags
-              .where(
-                (t) =>
-                    query.isEmpty ||
-                    t.toLowerCase().contains(query.toLowerCase()),
-              )
-              .toList()
-            ..sort();
+          final candidates =
+              allTags
+                  .where(
+                    (t) =>
+                        query.isEmpty ||
+                        t.toLowerCase().contains(query.toLowerCase()),
+                  )
+                  .toList()
+                ..sort();
           return AlertDialog(
             title: const Text('标签'),
             content: SizedBox(
@@ -640,8 +649,7 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
                           .map(
                             (t) => InputChip(
                               label: Text(t),
-                              onDeleted: () =>
-                                  setDialog(() => _tags.remove(t)),
+                              onDeleted: () => setDialog(() => _tags.remove(t)),
                             ),
                           )
                           .toList(),

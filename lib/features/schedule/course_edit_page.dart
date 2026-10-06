@@ -100,9 +100,8 @@ class _CourseEditPageState extends ConsumerState<CourseEditPage> {
       if (result.rawText.isNotEmpty) _notesCtrl.text = result.rawText;
     });
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已填入识别结果，请核对后再保存')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('已填入识别结果，请核对后再保存')));
     }
   }
 
