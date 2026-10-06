@@ -8,7 +8,7 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-  workflow_dispatch: # 手动触发
+  workflow_dispatch: # 手动触发；ref 可填已有标签（如 v1.2.0）以补齐该发布的产物
 
 # 发布到 Releases 需要写权限
 permissions:
@@ -41,17 +41,52 @@ jobs:
           Compress-Archive -Path * -DestinationPath AllOne-Windows.zip
         shell: pwsh
 
+      # —— 安装包（Inno Setup）——
+      - name: 安装 Inno Setup
+        run: |
+          # choco 会往 stderr 输出警告，而 GHA 的 pwsh 步骤默认
+          # $ErrorActionPreference='stop'，会把警告当成失败，这里放宽
+          $ErrorActionPreference = 'Continue'
+          choco install innosetup --no-progress -y
+          # 只要 ISCC 到位就算成功（choco 的退出码在已安装等情况下不可靠）
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "$env:ProgramFiles\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { Write-Error "Inno Setup 安装失败：找不到 ISCC.exe"; exit 1 }
+          Write-Host "ISCC 就绪: $iscc"
+        shell: pwsh
+
+      - name: 构建 Windows 安装包
+        run: |
+          # choco 安装后的标准路径；显式写全路径避免 PATH 未刷新
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $iscc = "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $iscc)) {
+            Write-Error "找不到 ISCC.exe，Inno Setup 可能未安装成功"
+            exit 1
+          }
+          Write-Host "使用编译器: $iscc"
+          & $iscc "installer\AllOne_setup.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem "installer\output" | Select-Object Name, Length
+        shell: pwsh
+
       - name: 上传产物（Actions Artifacts）
         uses: actions/upload-artifact@v4
         with:
           name: AllOne-Windows
-          path: build/windows/x64/runner/Release/AllOne-Windows.zip
+          path: |
+            build/windows/x64/runner/Release/AllOne-Windows.zip
+            installer/output/AllOne_Setup_*.exe
 
       - name: 发布到 GitHub Releases（仅 tag 触发）
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/windows/x64/runner/Release/AllOne-Windows.zip
+          files: |
+            build/windows/x64/runner/Release/AllOne-Windows.zip
+            installer/output/AllOne_Setup_*.exe
 
   # —— Android APK ——
   build-android:
