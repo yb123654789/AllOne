@@ -1,4 +1,4 @@
-# 发布产物
+﻿# 发布产物
 
 本目录为**发布产物说明**。安装包 / APK 等大文件**不直接存于 git 仓库**（避免仓库膨胀），统一通过 **GitHub Releases** 发布：
 
@@ -16,8 +16,8 @@
 自动发布（推荐）：推送一个 `v*` 标签即可触发 CI 自动构建并发布到 Releases：
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
 或到 GitHub 仓库 **Actions** 页手动运行 **Build AllOne** 工作流，产物会作为 Artifacts 提供。
