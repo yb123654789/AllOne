@@ -1,17 +1,13 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:path/path.dart' as p;
 
-import '../../core/models/common.dart';
 import '../../core/storage/json_store.dart';
 import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
-import '../../core/utils/media_utils.dart';
+import '../../core/widgets/attachment_view.dart';
 import '../../core/widgets/location_map_view.dart';
-import '../../core/widgets/video_viewer.dart';
 import 'diary_edit_page.dart';
 import 'diary_models.dart';
 import 'diary_repository.dart';
@@ -224,6 +220,11 @@ class DiaryDetailPage extends ConsumerWidget {
   }
 
   Widget _attachments(BuildContext context, JsonStore store) {
+    // 附件路径 = store.root.path + 条目目录（store 一定非空，调用方已保证）。
+    //
+    // 早期这里在 store 为 null 时把 mediaDir 退化成空串，会让所有附件
+    // 「存在性判断」失败（表现为只显示文件名、打不开）。
+    final mediaDir = p.join(store.root.path, diaryMediaDir(entry.id));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -232,99 +233,10 @@ class DiaryDetailPage extends ConsumerWidget {
           style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
         ),
         const SizedBox(height: 8),
-        for (final m in entry.media) _mediaTile(context, store, m),
+        // 整行可点即打开（照片看大图 / 录音直接播放 / 视频播放 / 文件交给系统程序）
+        for (final m in entry.media)
+          AttachmentTile(media: m, mediaDir: mediaDir),
       ],
-    );
-  }
-
-  Widget _mediaTile(BuildContext context, JsonStore store, MediaAttachment m) {
-    // store 一定非空（调用方已保证），因此路径总是可算的。
-    // 早期这里允许 store 为 null 并把 mediaDir 退化成空串，
-    // 会让所有附件「存在性判断」失败（表现为只显示文件名、打不开）。
-    final mediaDir = '${store.root.path}/diary/entries/${entry.id}/media';
-    switch (m.type) {
-      case MediaType.photo:
-        final file = File(p.join(mediaDir, m.file ?? ''));
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.photo, color: AppTheme.primary),
-          title: Text(m.file ?? ''),
-          subtitle: Text(_fmtSize(m.size)),
-          trailing: file.existsSync()
-              ? IconButton(
-                  icon: const Icon(Icons.visibility_outlined),
-                  onPressed: () => _viewImage(context, file),
-                )
-              : null,
-        );
-      case MediaType.audio:
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.mic, color: AppTheme.primary),
-          title: Text(m.file ?? ''),
-          subtitle: Text(_fmtSize(m.size)),
-          trailing: IconButton(
-            icon: const Icon(Icons.play_circle_outline),
-            onPressed: () =>
-                MediaUtils.playAudio(p.join(mediaDir, m.file ?? '')),
-          ),
-        );
-      case MediaType.video:
-        final file = File(p.join(mediaDir, m.file ?? ''));
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.videocam, color: AppTheme.primary),
-          title: Text(m.file ?? ''),
-          subtitle: Text(_fmtSize(m.size)),
-          trailing: file.existsSync()
-              ? IconButton(
-                  icon: const Icon(Icons.play_circle_outline),
-                  tooltip: '播放',
-                  onPressed: () => _playVideo(context, file),
-                )
-              : null,
-        );
-      case MediaType.videoLink:
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.link, color: AppTheme.primary),
-          title: Text(m.external ?? '外链'),
-          subtitle: Text(m.note ?? '大视频外链'),
-        );
-      case MediaType.file:
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.insert_drive_file, color: AppTheme.primary),
-          title: Text(m.file ?? ''),
-          subtitle: Text(_fmtSize(m.size)),
-        );
-    }
-  }
-
-  void _viewImage(BuildContext context, File file) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-          ),
-          body: Center(
-            child: InteractiveViewer(
-              child: Image.file(file, fit: BoxFit.contain),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _playVideo(BuildContext context, File file) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => VideoViewer(file: file)),
     );
   }
 
@@ -351,11 +263,5 @@ class DiaryDetailPage extends ConsumerWidget {
       await ref.read(diaryListProvider.notifier).deleteEntry(entry.id);
       if (context.mounted) Navigator.pop(context);
     }
-  }
-
-  String _fmtSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
   }
 }

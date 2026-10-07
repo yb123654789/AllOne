@@ -91,4 +91,31 @@ class MediaUtils {
     await _play.stop();
     await _play.play(DeviceFileSource(path));
   }
+
+  /// 用系统默认程序打开本地文件或网址（Windows / macOS / Linux）。
+  ///
+  /// 移动端没有系统级「打开方式」，会返回 false，由调用方给出提示。
+  /// 返回值表示是否**成功发起**打开动作（不代表目标程序一定能解析该格式）。
+  static Future<bool> openWithSystem(String target) async {
+    if (target.trim().isEmpty) return false;
+    try {
+      if (Platform.isWindows) {
+        // `start` 的第一个参数是窗口标题，必须用空串占位，
+        // 否则含空格的路径会被当成窗口标题而打不开。
+        await Process.start('cmd', ['/c', 'start', '', target]);
+        return true;
+      }
+      if (Platform.isMacOS) {
+        await Process.start('open', [target]);
+        return true;
+      }
+      if (Platform.isLinux) {
+        await Process.start('xdg-open', [target]);
+        return true;
+      }
+    } catch (_) {
+      return false;
+    }
+    return false;
+  }
 }

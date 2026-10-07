@@ -4,6 +4,21 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// —— 发布签名（应用内自动更新依赖它）——
+// 必须**始终用同一个密钥**签名：Android 只允许签名一致的 APK 覆盖安装。
+// debug 签名不行 —— 每台机器 / 每次 CI 构建的 debug 密钥都不同，
+// 新 APK 会报「签名不一致」装不上去，用户只能卸载重装（数据全丢）。
+// 密钥与密码随仓库保存，见 android/.gitignore 的说明。
+import java.util.Properties
+import java.io.FileInputStream
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseKey = keystorePropertiesFile.exists()
+if (hasReleaseKey) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.allone.allone"
     compileSdk = flutter.compileSdkVersion
@@ -29,11 +44,29 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                // v1 + v2 双签名：老设备（Android 6 及以下）也能装
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // 找不到密钥时才退回 debug 签名：这种产物**无法**覆盖安装已发布的 App，
+            // 只能用于本地临时测试。
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

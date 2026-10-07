@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/common.dart';
-import '../../core/storage/app_paths.dart';
 import '../../core/theme.dart';
+import '../../core/widgets/color_picker.dart';
 import '../diary/diary_models.dart';
 import '../diary/diary_repository.dart';
 import '../habit/habit_models.dart';
@@ -14,6 +14,7 @@ import '../todo/todo_models.dart';
 import '../todo/todo_repository.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
+import 'special_days_page.dart';
 
 /// 日历模块入口页：当天 / 当月 / 当年 三视图聚合。
 class CalendarPage extends ConsumerStatefulWidget {
@@ -34,10 +35,24 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     final checkinAsync = ref.watch(habitCheckinProvider);
     final courseAsync = ref.watch(courseListProvider);
     final specialAsync = ref.watch(specialDayListProvider);
+    // 当天视图也要提示「今天是什么日子」，所以这里先取当年的内置节假日
+    final holidays =
+        ref.watch(holidayListProvider(DateTime.now().year)).valueOrNull ??
+        const <SpecialDay>[];
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('日历'),
+        actions: [
+          IconButton(
+            tooltip: '特殊日子 / 倒数日',
+            icon: const Icon(Icons.event_note_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SpecialDaysPage()),
+            ),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Padding(
@@ -68,6 +83,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                     checkins,
                     courses,
                     specials,
+                    holidays,
                   ),
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
@@ -98,6 +114,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     Map<String, CheckinMap> checkins,
     List<Course> courses,
     List<SpecialDay> specials,
+    List<SpecialDay> holidays,
   ) {
     switch (_view) {
       case 0:
@@ -107,6 +124,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           habits: habits,
           checkins: checkins,
           courses: courses,
+          specials: [...specials, ...holidays],
         );
       case 1:
         return MonthView(
@@ -136,6 +154,9 @@ class DayView extends StatelessWidget {
   final Map<String, CheckinMap> checkins;
   final List<Course> courses;
 
+  /// 自定义特殊日子 + 内置节假日（用于在当天视图里提示「今天是什么日子」）
+  final List<SpecialDay> specials;
+
   const DayView({
     super.key,
     required this.todos,
@@ -143,12 +164,17 @@ class DayView extends StatelessWidget {
     required this.habits,
     required this.checkins,
     required this.courses,
+    this.specials = const [],
   });
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final today = AppTime.dateOnly(now);
+
+    // 今天的特殊日子（含每年重复的生日 / 纪念日）
+    final todaySpecials = specials.where((s) => s.occursOn(today)).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
 
     // 今天待办（未完成），按截止时间排序
     final todayTodos =
@@ -179,6 +205,25 @@ class DayView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
+        if (todaySpecials.isNotEmpty) ...[
+          _header('今天的特殊日子（${todaySpecials.length}）'),
+          for (final s in todaySpecials)
+            ListTile(
+              dense: true,
+              leading: Icon(
+                s.type == 'holiday' ? Icons.celebration : Icons.star,
+                color: hexColor(s.color),
+              ),
+              title: Text(s.name),
+              subtitle: Text(
+                [
+                  s.type == 'holiday' ? '内置节假日' : '自定义',
+                  if (s.repeatYearly) '每年重复',
+                ].join(' · '),
+              ),
+              trailing: _anniversary(s, today),
+            ),
+        ],
         _header('今天日记（${todayDiaries.length}）'),
         if (todayDiaries.isEmpty)
           _empty('今天还没有写日记')
@@ -200,7 +245,7 @@ class DayView extends StatelessWidget {
           for (final t in todayTodos)
             ListTile(
               dense: true,
-              leading: Icon(Icons.schedule, color: _hex(t.deadline.color)),
+              leading: Icon(Icons.schedule, color: hexColor(t.deadline.color)),
               title: Text(t.title.isEmpty ? '（无标题）' : t.title),
               subtitle: Text(
                 '${t.deadline.time.isEmpty ? '全天' : t.deadline.time}'
@@ -258,6 +303,16 @@ class DayView extends StatelessWidget {
     ),
   );
 
+  /// 每年重复的纪念日：正好是今天时显示「第 N 周年」
+  Widget? _anniversary(SpecialDay s, String today) {
+    final years = s.anniversaryYears(today);
+    if (years == null) return null;
+    return Text(
+      '第 $years 周年',
+      style: TextStyle(fontSize: 12, color: hexColor(s.color)),
+    );
+  }
+
   Widget _empty(String s) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     child: Text(
@@ -266,11 +321,6 @@ class DayView extends StatelessWidget {
     ),
   );
 
-  Color _hex(String hex) {
-    var h = hex.replaceFirst('#', '');
-    if (h.length == 6) h = 'FF$h';
-    return Color(int.tryParse(h, radix: 16) ?? 0xFFE5484D);
-  }
 }
 
 /// —— 当月视图：月历 + 完成情况可视化 + 特殊日子 ——
@@ -420,7 +470,8 @@ class _MonthViewState extends ConsumerState<MonthView> {
     final now = AppTime.dateOnly(DateTime.now());
     final isToday = date == now;
     final allSpecials = [...widget.specials, ...holidays];
-    final special = allSpecials.where((s) => s.date == date).firstOrNull;
+    // 支持「每年重复」：生日 / 纪念日每年都会命中
+    final special = allSpecials.where((s) => s.occursOn(date)).firstOrNull;
     // 完成情况：当天到期已完成的待办 + 习惯打卡 + 日记
     final dayTodos = widget.todos
         .where((t) => t.deadline.date == date)
@@ -440,7 +491,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
         margin: const EdgeInsets.all(2),
         decoration: BoxDecoration(
           color: special != null
-              ? _hex(special.color).withValues(alpha: 0.15)
+              ? hexColor(special.color).withValues(alpha: 0.15)
               : isToday
               ? AppTheme.primary.withValues(alpha: 0.1)
               : isCurrentMonth
@@ -469,7 +520,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
                 if (doneCount > 0) _dot(AppTheme.primary, doneCount),
                 if (checkinCount > 0) _dot(Colors.green, checkinCount),
                 if (diaryCount > 0) _dot(const Color(0xFF7C3AED), diaryCount),
-                if (special != null) _dot(_hex(special.color), 1),
+                if (special != null) _dot(hexColor(special.color), 1),
               ],
             ),
           ],
@@ -495,7 +546,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
     final specials = [
       ...widget.specials,
       ...holidays,
-    ].where((s) => s.date == date).toList();
+    ].where((s) => s.occursOn(date)).toList();
     final dayDiaries =
         widget.diaries
             .where((d) => AppTime.dateOnly(d.createdAt) == date)
@@ -522,9 +573,11 @@ class _MonthViewState extends ConsumerState<MonthView> {
             ListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
+              // 自定义的特殊日子点一下就能改名 / 改颜色 / 开每年重复（内置节假日不可改）
+              onTap: s.type == 'custom' ? () => _editSpecialDay(day, s) : null,
               leading: Icon(
                 s.type == 'holiday' ? Icons.celebration : Icons.star,
-                color: _hex(s.color),
+                color: hexColor(s.color),
               ),
               title: Text(s.name),
               subtitle: s.type == 'holiday'
@@ -535,13 +588,37 @@ class _MonthViewState extends ConsumerState<MonthView> {
                         color: AppTheme.textSecondary,
                       ),
                     )
-                  : null,
+                  : Text(
+                      [
+                        '自定义',
+                        if (s.repeatYearly) '每年重复',
+                        s.color.toUpperCase(),
+                        '点按可编辑',
+                      ].join(' · '),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
               trailing: s.type == 'custom'
-                  ? IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      onPressed: () {
-                        ref.read(specialDayListProvider.notifier).delete(s.id);
-                      },
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          tooltip: '编辑名称 / 颜色 / 每年重复',
+                          onPressed: () => _editSpecialDay(day, s),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          tooltip: '删除',
+                          onPressed: () {
+                            ref
+                                .read(specialDayListProvider.notifier)
+                                .delete(s.id);
+                          },
+                        ),
+                      ],
                     )
                   : null,
             ),
@@ -555,7 +632,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
                     : Icons.schedule,
                 color: t.status == TodoStatus.done
                     ? Colors.green
-                    : _hex(t.deadline.color),
+                    : hexColor(t.deadline.color),
               ),
               title: Text(t.title.isEmpty ? '（无标题）' : t.title),
               subtitle: Text(t.deadline.time.isEmpty ? '全天' : t.deadline.time),
@@ -571,7 +648,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
               ),
             ),
           TextButton.icon(
-            onPressed: () => _addSpecialDay(day),
+            onPressed: () => _editSpecialDay(day, null),
             icon: const Icon(Icons.star_outline, size: 18),
             label: const Text('添加特殊日子 / 节假日'),
           ),
@@ -580,117 +657,17 @@ class _MonthViewState extends ConsumerState<MonthView> {
     );
   }
 
-  Future<void> _addSpecialDay(DateTime day) async {
-    final nameCtrl = TextEditingController();
-    String color = '#F5A623';
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('特殊日子'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '日期：${AppTime.dateOnly(day)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: nameCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(labelText: '名称（如：国庆节 / 纪念日）'),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 6,
-                children: [
-                  for (final c in const [
-                    '#E5484D',
-                    '#F5A623',
-                    '#30A46C',
-                    '#1E88E5',
-                    '#7C3AED',
-                  ])
-                    _ColorPick(
-                      c: c,
-                      selected: color == c,
-                      onTap: () => setState(() => color = c),
-                    ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('保存'),
-            ),
-          ],
-        ),
-      ),
+  /// 添加 / 编辑特殊日子。
+  ///
+  /// 对话框本体在 [showSpecialDayEditor]（与「特殊日子 · 倒数日」总览页共用），
+  /// 不再各写一份：颜色可自定义，还能打开「每年重复」。
+  Future<void> _editSpecialDay(DateTime day, SpecialDay? editing) {
+    return showSpecialDayEditor(
+      context,
+      ref,
+      date: AppTime.dateOnly(day),
+      editing: editing,
     );
-    if (saved == true) {
-      await ref
-          .read(specialDayListProvider.notifier)
-          .save(
-            SpecialDay(
-              id: AppPaths.newId(),
-              date: AppTime.dateOnly(day),
-              name: nameCtrl.text.trim(),
-              type: 'custom',
-              color: color,
-            ),
-          );
-    }
-  }
-
-  Color _hex(String hex) {
-    var h = hex.replaceFirst('#', '');
-    if (h.length == 6) h = 'FF$h';
-    return Color(int.tryParse(h, radix: 16) ?? 0xFFE5484D);
-  }
-}
-
-class _ColorPick extends StatelessWidget {
-  final String c;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ColorPick({
-    required this.c,
-    this.selected = false,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      customBorder: const CircleBorder(),
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: _hex(c),
-          shape: BoxShape.circle,
-          border: selected ? Border.all(color: Colors.black, width: 2) : null,
-        ),
-      ),
-    );
-  }
-
-  Color _hex(String hex) {
-    var h = hex.replaceFirst('#', '');
-    if (h.length == 6) h = 'FF$h';
-    return Color(int.tryParse(h, radix: 16) ?? 0xFFE5484D);
   }
 }
 
@@ -740,9 +717,7 @@ class YearView extends ConsumerWidget {
         final diaryCount = diaries
             .where((d) => AppTime.dateOnly(d.createdAt).startsWith(ym))
             .length;
-        final specialCount = allSpecials
-            .where((s) => s.date.startsWith(ym))
-            .length;
+        final specialCount = allSpecials.where((s) => s.inMonth(ym)).length;
         return Card(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

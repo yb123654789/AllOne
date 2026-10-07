@@ -1,14 +1,22 @@
-﻿; ============================================================
+; ============================================================
 ; AllOne 安装脚本 (Inno Setup 6)
 ; 功能：
 ;   1. 生成安装程序 + 卸载程序（自动注册到控制面板）
 ;   2. 安装时自动创建数据目录 Documents\AllOneData 及全部子目录
-;   3. 卸载时自动删除程序文件与数据目录
-; 生成产物：installer\output\AllOne_Setup_v1.2.1.exe
+;   3. 卸载时**默认保留**数据目录，只有用户明确选择才删除
+; 生成产物：installer\output\AllOne_Setup_v1.2.3.exe
+;
+; ⚠ 数据安全说明（重要，勿改回旧写法）：
+;   旧版本用 [UninstallDelete] 无条件删除 {userdocs}\AllOneData。
+;   而 Setup 安装新版本时会**自动静默调用旧版本的卸载程序**，
+;   静默模式下 MsgBox 取默认按钮（旧写法的默认是「是」），
+;   于是「升级安装」会把用户全部数据静默删掉。
+;   现在改为：卸载时询问（默认按钮 = 否 / 保留），且删除动作由
+;   CurUninstallStepChanged(usPostUninstall) 执行，升级路径不再有任何删除。
 ; ============================================================
 
 #define MyAppName "AllOne"
-#define MyAppVersion "1.2.1"
+#define MyAppVersion "1.2.3"
 #define MyAppPublisher "AllOne"
 #define MyAppExeName "allone.exe"
 #define MyAppId "{{8E9D1F2A-3B4C-5D6E-7F80-9A1B2C3D4E5F}}"
@@ -81,17 +89,32 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
-; 卸载时自动删除数据目录（全部个人数据）
-[UninstallDelete]
-Type: filesandordirs; Name: "{userdocs}\AllOneData"
+; 注意：这里**故意没有** [UninstallDelete] 删除数据目录的条目。
+; 卸载时是否删除数据，由下面的脚本在询问之后决定。
 
 [Code]
-{ 卸载确认：提醒数据目录会被删除 }
+var
+  DeleteData: Boolean;
+
+{ 卸载询问：默认按钮为「否」（保留数据）。
+  静默卸载（升级时 Setup 会自动调用旧卸载器）取默认值 = 否，
+  因此升级永远不会删除数据。 }
 function InitializeUninstall(): Boolean;
 begin
-  Result := MsgBox(
-    '即将卸载 AllOne，并删除全部个人数据（Documents\AllOneData 目录，' +
-    '包含日记、待办、习惯、课程表、记账、日历等所有数据）。' + #13#10 + #13#10 +
-    '确定要继续卸载吗？',
-    mbConfirmation, MB_YESNO) = IDYES;
+  DeleteData := MsgBox(
+    '是否同时删除全部个人数据？' + #13#10 + #13#10 +
+    '数据目录：Documents\AllOneData' + #13#10 +
+    '（含日记、待办、习惯、课程表、记账、日历、附件等全部内容）' + #13#10 + #13#10 +
+    '建议选择「否」保留数据 —— 以后重新安装 AllOne 还能继续使用。',
+    mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+  Result := True;
+end;
+
+{ 只有用户明确选择「是」才删除数据目录 }
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if (CurUninstallStep = usPostUninstall) and DeleteData then
+  begin
+    DelTree(ExpandConstant('{userdocs}\AllOneData'), True, True, True);
+  end;
 end;

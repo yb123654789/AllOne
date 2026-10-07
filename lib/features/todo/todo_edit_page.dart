@@ -9,6 +9,7 @@ import '../../core/storage/app_paths.dart';
 import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
 import '../../core/utils/media_utils.dart';
+import '../../core/widgets/attachment_view.dart';
 import '../../core/widgets/location_map_picker.dart';
 import 'todo_models.dart';
 import 'todo_repository.dart';
@@ -550,21 +551,21 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
   }
 
   void _showMedia() {
+    // 已保存的附件就在本条目的 media 目录里；整行点一下即可查看 / 播放。
+    final root = ref.read(jsonStoreProvider).valueOrNull?.root.path;
+    final mediaDir = root == null ? null : p.join(root, todoMediaDir(_itemId));
     showModalBottomSheet(
       context: context,
       builder: (ctx) => ListView(
         padding: const EdgeInsets.all(16),
         children: [
           const Text('附件列表', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
           for (final m in _media)
-            ListTile(
-              leading: Icon(_mediaIcon(m.type)),
-              title: Text(m.file ?? m.external ?? ''),
-              subtitle: Text('${(m.size / 1024).toStringAsFixed(1)} KB'),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () => setState(() => _media.remove(m)),
-              ),
+            AttachmentTile(
+              media: m,
+              mediaDir: mediaDir,
+              onDelete: () => setState(() => _media.remove(m)),
             ),
         ],
       ),
@@ -734,21 +735,6 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
         },
       ),
     );
-  }
-
-  IconData _mediaIcon(MediaType t) {
-    switch (t) {
-      case MediaType.photo:
-        return Icons.photo;
-      case MediaType.audio:
-        return Icons.mic;
-      case MediaType.video:
-        return Icons.videocam;
-      case MediaType.file:
-        return Icons.insert_drive_file;
-      case MediaType.videoLink:
-        return Icons.link;
-    }
   }
 
   Future<String?> _pickColor(BuildContext ctx, String current) async {

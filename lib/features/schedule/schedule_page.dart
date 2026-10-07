@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/models/ui_prefs.dart';
 import '../../core/storage/app_paths.dart';
+import '../../core/storage/ui_prefs_providers.dart';
 import '../../core/theme.dart';
 import 'course_edit_page.dart';
 import 'schedule_models.dart';
@@ -9,6 +11,28 @@ import 'schedule_repository.dart';
 
 /// 星期名（周一起始）
 const _weekNames = ['一', '二', '三', '四', '五', '六', '日'];
+
+/// 周视图 7 列网格的列宽（纯函数，便于单元测试）。
+///
+/// 关键约束：**7 列 + 列间距 + 左右留白 不会超过可用宽度**，
+/// 这样内容才与窗口对齐（旧实现是 7 × 固定 150px，比窗口宽就得左右平移）。
+/// 超过 [maxCol] 时不再拉宽（超宽屏上避免一列被拉成一条）。
+double scheduleColumnWidth(
+  double maxWidth, {
+  int columns = 7,
+  double gap = 6,
+  double horizontalPadding = 8,
+  double minCol = 60,
+  double maxCol = 360,
+}) {
+  final available =
+      maxWidth - horizontalPadding * 2 - gap * (columns - 1);
+  if (available <= 0) return minCol;
+  final w = available / columns;
+  if (w < minCol) return minCol;
+  if (w > maxCol) return maxCol;
+  return w;
+}
 
 /// 课程表模块入口页：周视图 + 课程统计（学期制，半年一换）。
 class SchedulePage extends ConsumerStatefulWidget {
@@ -86,71 +110,228 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   }
 }
 
-/// 周视图
+/// 周视图的两种排布
+enum ScheduleLayout {
+  /// 7 列周网格（传统课程表）
+  grid,
+
+  /// 一天一段的纵向列表（手机友好，无需左右平移）
+  list,
+}
+
+/// 周视图（两种排布可手动切换并记住，默认按窗口宽度自动选）
 class _WeekView extends ConsumerWidget {
   const _WeekView();
+
+  /// 窄于这个宽度（手机竖屏）自动改用「一天一段」：
+  /// 7 列平分后每列只剩 50px 左右，字全被挤没。
+  static const double _gridMinWidth = 560;
+
+  /// 宽屏（电脑）时列宽上限，避免超宽屏把一张课卡拉成一条
+  static const double _maxColWidth = 360;
+
+  /// 用户手动选择的排布；null = 自动（随窗口宽度）。
+  /// 选择会写进 `AllOneData/settings/ui.json`，重启后仍然记得。
+  static ScheduleLayout? _overrideOf(String pref) => switch (pref) {
+    UiPrefs.scheduleLayoutGrid => ScheduleLayout.grid,
+    UiPrefs.scheduleLayoutList => ScheduleLayout.list,
+    _ => null,
+  };
+
+  static Future<void> _saveLayout(WidgetRef ref, ScheduleLayout? mode) {
+    return ref
+        .read(uiPrefsProvider.notifier)
+        .setScheduleLayout(mode?.name ?? UiPrefs.scheduleLayoutAuto);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final courses = ref.watch(courseListProvider).valueOrNull ?? [];
-    final now = DateTime.now();
-    final today = now.weekday;
-    return SizedBox(
-      height: double.infinity,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.all(8),
+    final today = DateTime.now().weekday;
+    final override = _overrideOf(ref.watch(scheduleLayoutPrefProvider));
+    return LayoutBuilder(
+      builder: (context, c) {
+        // 以前这里是一个横向 ListView（7 列 × 固定 150px ≈ 1050px）：
+        // 窗口比它宽时右侧留白「对不齐」，比它窄（手机）时只能左右平移，
+        // 每列内部还各有一个纵向 ListView，于是又得上下翻 —— 双重滚动。
+        // 现在两种排布都保留：宽屏平分列宽铺满窗口，窄屏按天竖排；
+        // 用户也可以随时手动切换（切换后按用户所选并记住，不再自动跟随）。
+        final auto = c.maxWidth < _gridMinWidth
+            ? ScheduleLayout.list
+            : ScheduleLayout.grid;
+        final mode = override ?? auto;
+        return Column(
+          children: [
+            _layoutBar(ref, mode, override != null),
+            Expanded(
+              child: mode == ScheduleLayout.grid
+                  ? _weekGrid(courses, today, c.maxWidth)
+                  : _dayList(courses, today),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 顶部切换条：网格 / 按天；手动选过之后出现「恢复自动」
+  Widget _layoutBar(WidgetRef ref, ScheduleLayout mode, bool manual) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          for (var w = 1; w <= 7; w++)
-            Container(
-              width: 150,
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              decoration: BoxDecoration(
-                color: w == today
-                    ? AppTheme.primary.withValues(alpha: 0.06)
-                    : AppTheme.surface,
-                borderRadius: BorderRadius.circular(10),
+          if (manual)
+            TextButton.icon(
+              icon: const Icon(Icons.restart_alt, size: 18),
+              label: const Text('恢复自动'),
+              onPressed: () => _saveLayout(ref, null),
+            ),
+          Tooltip(
+            message: manual
+                ? '已手动选择（会记住），可点「恢复自动」'
+                : '当前按窗口宽度自动选择（宽屏网格 / 窄屏按天）',
+            child: SegmentedButton<ScheduleLayout>(
+              showSelectedIcon: false,
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: Column(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: w == today ? AppTheme.primary : Colors.transparent,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(10),
-                      ),
-                    ),
-                    child: Text(
-                      '周${_weekNames[w - 1]}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: w == today ? Colors.white : AppTheme.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.all(6),
-                      children: [
-                        for (final c in courses.where((c) => c.weekday == w))
-                          _courseCell(c),
-                      ],
-                    ),
-                  ),
-                ],
+              segments: const [
+                ButtonSegment(
+                  value: ScheduleLayout.grid,
+                  icon: Icon(Icons.grid_view_outlined, size: 16),
+                  label: Text('网格'),
+                ),
+                ButtonSegment(
+                  value: ScheduleLayout.list,
+                  icon: Icon(Icons.view_agenda_outlined, size: 16),
+                  label: Text('按天'),
+                ),
+              ],
+              selected: {mode},
+              onSelectionChanged: (s) => _saveLayout(ref, s.first),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 7 列周网格。列宽 = 可用宽度平分，**内容与窗口对齐**；
+  /// 只有在用户手动选「网格」而窗口又太窄时，才退化为横向平移
+  /// （此时也不再需要上下分别滚动：整块只有一个纵向滚动）。
+  Widget _weekGrid(List<Course> courses, int today, double maxWidth) {
+    const gap = 6.0;
+    const padding = 8.0;
+    final colWidth = scheduleColumnWidth(
+      maxWidth,
+      gap: gap,
+      maxCol: _maxColWidth,
+    );
+    final gridWidth = colWidth * 7 + gap * 6;
+    final grid = IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var w = 1; w <= 7; w++) ...[
+            if (w > 1) const SizedBox(width: gap),
+            SizedBox(
+              width: colWidth,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: w == today
+                      ? AppTheme.primary.withValues(alpha: 0.06)
+                      : AppTheme.surface,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  children: [
+                    _dayHeader(w, w == today),
+                    const SizedBox(height: 6),
+                    ..._cellsOf(courses, w),
+                  ],
+                ),
               ),
             ),
+          ],
         ],
+      ),
+    );
+    final fits = gridWidth <= maxWidth - padding * 2;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(padding),
+      child: fits
+          ? Center(child: SizedBox(width: gridWidth, child: grid))
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(width: gridWidth, child: grid),
+            ),
+    );
+  }
+
+  /// 一天一段，纵向排列 —— 左右不再需要平移，整页只需上下滚动。
+  /// 窄屏自动用它，宽屏也可以手动切到它（课多的日子看得更清楚）。
+  Widget _dayList(List<Course> courses, int today) {
+    return ListView(
+      padding: const EdgeInsets.all(8),
+      children: [
+        for (var w = 1; w <= 7; w++) ...[
+          _dayHeader(w, w == today),
+          const SizedBox(height: 6),
+          ..._cellsOf(courses, w),
+          const SizedBox(height: 14),
+        ],
+      ],
+    );
+  }
+
+  /// 某一天的所有课程卡片；没有课时给一句提示（保持 7 天结构，方便定位）
+  List<Widget> _cellsOf(List<Course> courses, int w) {
+    final day = courses.where((c) => c.weekday == w).toList()
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+    if (day.isEmpty) {
+      return [
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 10),
+          child: Text(
+            '没有课',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+          ),
+        ),
+      ];
+    }
+    return [for (final c in day) _courseCell(c)];
+  }
+
+  Widget _dayHeader(int w, bool isToday) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: isToday ? AppTheme.primary : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: isToday ? null : Border.all(color: AppTheme.divider),
+      ),
+      child: Text(
+        '周${_weekNames[w - 1]}${isToday ? ' · 今天' : ''}',
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: isToday ? Colors.white : AppTheme.textPrimary,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
       ),
     );
   }
 
   Widget _courseCell(Course c) {
     return Container(
+      width: double.infinity,
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -163,17 +344,28 @@ class _WeekView extends ConsumerWidget {
         children: [
           Text(
             c.name.isEmpty ? '（未命名）' : c.name,
+            // 窄列 / 长课名不再撑破布局，直接省略号
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 2),
           Text(
             '${c.startTime}-${c.endTime}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 11, color: AppTheme.primary),
           ),
-          Text(
-            c.classroom.isEmpty ? '' : c.classroom,
-            style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
-          ),
+          if (c.classroom.isNotEmpty)
+            Text(
+              c.classroom,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppTheme.textSecondary,
+              ),
+            ),
         ],
       ),
     );

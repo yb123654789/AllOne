@@ -9,6 +9,7 @@ import '../../core/storage/app_paths.dart';
 import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
 import '../../core/utils/media_utils.dart';
+import '../../core/widgets/attachment_view.dart';
 import '../../core/widgets/tag_dialogs.dart';
 import 'habit_models.dart';
 import 'habit_repository.dart';
@@ -548,21 +549,21 @@ class _HabitEditPageState extends ConsumerState<HabitEditPage> {
   }
 
   void _showMediaList() {
+    // 已保存的附件就在本习惯的 media 目录里；整行点一下即可查看 / 播放。
+    final root = ref.read(jsonStoreProvider).valueOrNull?.root.path;
+    final mediaDir = root == null ? null : p.join(root, habitMediaDir(_id));
     showModalBottomSheet(
       context: context,
       builder: (ctx) => ListView(
         padding: const EdgeInsets.all(16),
         children: [
           const Text('附件列表', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
           for (final m in _media)
-            ListTile(
-              leading: Icon(_mediaIcon(m.type)),
-              title: Text(m.file ?? m.external ?? ''),
-              subtitle: Text('${(m.size / 1024).toStringAsFixed(1)} KB'),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () => setState(() => _media.remove(m)),
-              ),
+            AttachmentTile(
+              media: m,
+              mediaDir: mediaDir,
+              onDelete: () => setState(() => _media.remove(m)),
             ),
         ],
       ),

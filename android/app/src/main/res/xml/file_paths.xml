@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  应用内更新用：允许 FileProvider 把下载好的 APK（放在应用私有目录）交给系统安装器。
+  路径与 update_service.dart 的 _downloadDir() 保持一致：
+  - getExternalStorageDirectory()/update  → <external-files-path>
+  - getTemporaryDirectory()/allone_update → <cache-path> / <external-cache-path>
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path name="allone_external_files" path="." />
+    <external-cache-path name="allone_external_cache" path="." />
+    <cache-path name="allone_cache" path="." />
+    <files-path name="allone_files" path="." />
+</paths>

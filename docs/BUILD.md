@@ -88,8 +88,47 @@ flutter analyze       # 静态分析
 实测 8.3 短路径与目录联接（junction）都绕不过去 —— Flutter 内部仍会解析出真实路径。
 建议工程放在纯英文路径（如 `C:\VScode\SoftwareDevelopment\AllOne`）。
 
+### 5.6 Android 发布签名（关系到「应用内自动更新」能不能用）
+
+**为什么必须固定签名**：Android 只允许**签名一致**的 APK 覆盖安装。
+用 debug 签名（`signingConfigs.getByName("debug")`）时，密钥每台机器 / 每次 CI 构建都不同，
+新 APK 装上去会报 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`，
+用户只能**卸载重装 —— 而卸载会删数据**。所以发布必须用固定密钥。
+
+**当前做法**（本项目为个人自用，密钥随仓库保存）：
+
+| 文件 | 作用 |
+|------|------|
+| `android/allone-release.jks` | 发布密钥（PKCS12，2048 位 RSA，有效期 30 年，别名 `allone`） |
+| `android/key.properties` | 密钥别名与密码（`android/app/build.gradle.kts` 读取） |
+
+`android/.gitignore` 里**故意不再忽略**这两个文件（默认模板是会忽略的）。
+CI 与本地都用它签名，因此同版本号之后的所有版本都能互相覆盖安装。
+
+> ⚠️ **这个密钥与密码一旦丢失，已安装的 App 将再也无法通过覆盖安装升级**
+> （只能卸载重装 + 先备份数据）。请连同 `android/key.properties` 一起备份到 U 盘。
+> **绝对不要重新生成它**：重新生成等于换了一把新钥匙，老用户的 App 装不上新包。
+
+密钥指纹（SHA-256）可用下面命令复核：
+
+```bash
+keytool -list -v -keystore android/allone-release.jks -storepass <key.properties 里的密码>
+```
+
+Gradle 里的行为：`key.properties` 存在 → 用 `release` 签名；
+不存在 → 回退 debug 签名（仅够本地临时测试，产物**无法**覆盖已发布的 App）。
+
 ## 6. 数据目录
 
 - 应用数据保存在系统文档目录的 `AllOneData/`。
 - 备份：设置页 → 导出备份 zip → 复制到 U 盘。
 - 恢复：设置页 → 从备份恢复。
+
+## 7. 发布与更新链路
+
+| 环节 | 做法 |
+|------|------|
+| 版本号 | 改 `pubspec.yaml` 的 `version: X.Y.Z+build`，并同步 `installer/AllOne_setup.iss` 的 `MyAppVersion` |
+| 发布 | 推送 `v*` 标签触发 CI，产物进 GitHub Releases（见 [release/README.md](../release/README.md)） |
+| 应用内更新 | 应用启动时（每天最多一次）与「设置 → 检查更新」都会查询 GitHub Releases 最新版本；发现新版本可**在应用内下载并覆盖安装** |
+| 数据安全 | 安装包只覆盖程序文件；`文档\AllOneData` 不动。安装包卸载时**默认保留**数据，只有明确选择「是」才彻底删除 |

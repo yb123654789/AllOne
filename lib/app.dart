@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/models/nav_settings.dart';
 import 'core/storage/nav_providers.dart';
 import 'core/theme.dart';
+import 'core/updater/update_ui.dart';
 import 'features/calendar/calendar_page.dart';
 import 'features/diary/diary_page.dart';
 import 'features/habit/habit_page.dart';
@@ -28,9 +29,14 @@ class AllOneApp extends StatelessWidget {
 }
 
 /// 主界面：底部导航切换六大功能模块。
-class HomeShell extends ConsumerWidget {
+class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
+  @override
+  ConsumerState<HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends ConsumerState<HomeShell> {
   /// 功能 key -> 页面（顺序与 [kAppFeatures] 一致）
   static final Map<String, Widget> _pages = {
     'diary': const DiaryPage(),
@@ -43,7 +49,16 @@ class HomeShell extends ConsumerWidget {
   };
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    // 启动时静默检查更新（每天最多一次；发现新版本才提示，失败不打扰）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) checkUpdateOnStartup(context, ref);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final nav =
         ref.watch(navSettingsProvider).valueOrNull ?? const NavSettings();
     var visible = bottomBarFeatures(nav);

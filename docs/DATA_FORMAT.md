@@ -273,12 +273,23 @@ settings/
 ```json
 {
   "specialDays": [
-    { "id": "sd-1", "date": "2026-10-01", "name": "纪念日", "type": "custom", "color": "#F44336" }
+    {
+      "id": "sd-1",
+      "date": "2026-10-01",
+      "name": "纪念日",
+      "type": "custom",
+      "color": "#F44336",
+      "repeatYearly": false
+    }
   ]
 }
 ```
 
 > - `special_days.json` 只保存**用户自定义**的特殊日子（`type = custom`）。
+> - `repeatYearly`：是否**每年重复**（生日 / 纪念日）。`true` 时只比较「月-日」，
+>   每年这一天都会出现在日历里，并在「特殊日子 · 倒数日」页给出倒数天数；
+>   旧数据没有该字段时按 `false`（不重复）处理。
+> - `color` 为 `#RRGGBB`，可由用户任意自定义（常用色板 / RGB 微调 / 十六进制输入）。
 > - **内置法定节假日 / 传统节日**（元旦、春节、清明、端午、中秋、国庆等，`type = holiday`）
 >   由代码在运行时动态生成（含农历算法，见 `calendar/lunar_calendar.dart`），**不落盘**，
 >   因此备份中无需包含，也不可被删除。
@@ -298,6 +309,23 @@ settings/
 > - 控制各功能（diary / todo / habit / schedule / ledger / calendar / tools）
 >   是否显示在**底部导航栏**中。
 > - 未配置的功能默认显示（缺省为 `true`）；关闭后仍可从「工具 → 功能导航」进入。
+
+### 3.11 界面偏好 `settings/ui.json`
+
+```json
+{
+  "scheduleLayout": "list",
+  "lastUpdateCheck": "2026-10-07T14:20:00.000",
+  "skippedUpdateVersion": "1.2.4"
+}
+```
+
+> - 记录「记住显示方式」这类小偏好，键值对形式，**新增偏好不需要改数据结构**。
+> - `scheduleLayout`：课程表周视图的排布 —— `auto`（按窗口宽度自动，缺省）/
+>   `grid`（7 列网格）/ `list`（按天纵向列表）。
+> - `lastUpdateCheck`：上次检查更新的时间（ISO 8601），用于「一天最多查一次」。
+> - `skippedUpdateVersion`：用户点过「跳过此版本」的版本号，不再重复提示。
+> - 读取**全程容错**：文件损坏、字段缺失或类型不对都回退到默认值，不影响启动。
 
 ## 4. 备份格式
 

@@ -9,10 +9,12 @@ import '../../core/backup/backup_service.dart';
 import '../../core/storage/app_paths.dart';
 import '../../core/storage/nav_providers.dart';
 import '../../core/theme.dart';
+import '../../core/updater/update_service.dart';
+import '../../core/updater/update_ui.dart';
 import '../../core/widgets/tile_sources.dart';
 import 'text_exporter.dart';
 
-/// 设置页：备份 / 恢复 / 通用文本导出 / 数据目录。
+/// 设置页：备份 / 恢复 / 通用文本导出 / 数据目录 / 检查更新。
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
@@ -24,11 +26,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _busy = false;
   String _dataDir = '';
   String _sizeText = '';
+  String _version = '';
 
   @override
   void initState() {
     super.initState();
     _loadInfo();
+    UpdateService.currentVersion().then((v) {
+      if (mounted) setState(() => _version = v);
+    });
   }
 
   Future<void> _loadInfo() async {
@@ -301,6 +307,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 '云同步默认关闭，确保信息不被第三方访问。',
               ),
               isThreeLine: true,
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(
+                Icons.system_update_alt,
+                color: AppTheme.primary,
+              ),
+              title: Text(
+                '检查更新（当前版本 ${_version.isEmpty ? '读取中…' : _version}）',
+              ),
+              subtitle: const Text(
+                '从 GitHub Releases 检查新版本，可在应用内直接下载并覆盖安装；'
+                '更新只替换程序文件，你的数据（文档\\AllOneData）不会被改动。',
+              ),
+              isThreeLine: true,
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showUpdateDialog(context, ref),
             ),
           ),
         ],

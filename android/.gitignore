@@ -7,8 +7,12 @@ gradle-wrapper.jar
 GeneratedPluginRegistrant.java
 .cxx/
 
-# Remember to never publicly share your keystore.
-# See https://flutter.dev/to/reference-keystore
-key.properties
-**/*.keystore
-**/*.jks
+# 说明：本项目是个人自用软件。为了让「应用内自动更新」可用
+# （同一签名才能覆盖安装、保留数据），发布密钥 allone-release.jks
+# 与 android/key.properties 需要随仓库一起保存，因此这里不再忽略它们。
+# 密钥一旦丢失，已安装的 App 将无法再通过覆盖安装升级 —— 请做好备份。
+# 详见 docs/BUILD.md 的「Android 发布签名」一节。
+# key.properties
+# **/*.keystore
+# **/*.jks
+
