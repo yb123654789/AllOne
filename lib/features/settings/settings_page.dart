@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/backup/backup_service.dart';
+import '../../core/models/ui_prefs.dart';
 import '../../core/storage/app_paths.dart';
 import '../../core/storage/nav_providers.dart';
+import '../../core/storage/ui_prefs_providers.dart';
 import '../../core/theme.dart';
 import '../../core/updater/update_service.dart';
 import '../../core/updater/update_ui.dart';
@@ -53,6 +55,64 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
     }
     return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(2)} GB';
+  }
+
+  /// 更新代理当前设置（供界面显示）
+  String get _proxyText {
+    final v = ref.watch(uiPrefsProvider).valueOrNull?.updateProxy ?? '';
+    if (v == 'direct') return '当前：强制直连（不使用代理）';
+    if (v.isNotEmpty) return '当前：$v';
+    return '当前：自动（读取 Windows 系统代理）\n'
+        '国内直连 GitHub 常被重置导致检查更新失败，可在此指定代理（如 127.0.0.1:7890）。';
+  }
+
+  Future<void> _editUpdateProxy() async {
+    final ctrl = TextEditingController(
+      text: ref.read(uiPrefsProvider).valueOrNull?.updateProxy ?? '',
+    );
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('更新代理'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '代理地址（host:port）',
+                hintText: '例如 127.0.0.1:7890',
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '留空 = 自动读取 Windows 系统代理；\n'
+              '填 direct = 强制直连（不使用代理）。',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (saved != true) return;
+    final value = ctrl.text.trim();
+    await ref.read(uiPrefsProvider.notifier).set(UiPrefs.updateProxyKey, value);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value.isEmpty ? '更新代理：自动' : '更新代理：$value')),
+    );
   }
 
   Future<void> _export() async {
@@ -310,21 +370,37 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
           Card(
-            child: ListTile(
-              leading: const Icon(
-                Icons.system_update_alt,
-                color: AppTheme.primary,
-              ),
-              title: Text(
-                '检查更新（当前版本 ${_version.isEmpty ? '读取中…' : _version}）',
-              ),
-              subtitle: const Text(
-                '从 GitHub Releases 检查新版本，可在应用内直接下载并覆盖安装；'
-                '更新只替换程序文件，你的数据（文档\\AllOneData）不会被改动。',
-              ),
-              isThreeLine: true,
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => showUpdateDialog(context, ref),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(
+                    Icons.system_update_alt,
+                    color: AppTheme.primary,
+                  ),
+                  title: Text(
+                    '检查更新（当前版本 ${_version.isEmpty ? '读取中…' : _version}）',
+                  ),
+                  subtitle: const Text(
+                    '从 GitHub Releases 检查新版本，可在应用内直接下载并覆盖安装；'
+                    '更新只替换程序文件，你的数据（文档\\AllOneData）不会被改动。',
+                  ),
+                  isThreeLine: true,
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => showUpdateDialog(context, ref),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(
+                    Icons.vpn_lock_outlined,
+                    color: AppTheme.primary,
+                  ),
+                  title: const Text('更新代理'),
+                  subtitle: Text(_proxyText),
+                  isThreeLine: true,
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _editUpdateProxy,
+                ),
+              ],
             ),
           ),
         ],

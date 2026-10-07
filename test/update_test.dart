@@ -154,4 +154,25 @@ void main() {
       expect(UpdateService.needsBackupBeforeUpdate('1.3.0'), isFalse);
     });
   });
+
+  group('更新 - 代理', () {
+    test('解析 Windows 系统代理字符串', () {
+      expect(UpdateService.parseWindowsProxy('127.0.0.1:7890'), '127.0.0.1:7890');
+      expect(
+        UpdateService.parseWindowsProxy('http=127.0.0.1:7890;https=127.0.0.1:7891'),
+        '127.0.0.1:7891',
+      );
+      expect(
+        UpdateService.parseWindowsProxy('https=127.0.0.1:7891;http=127.0.0.1:7890'),
+        '127.0.0.1:7891',
+      );
+      expect(UpdateService.parseWindowsProxy('http://127.0.0.1:7890'), '127.0.0.1:7890');
+      expect(UpdateService.parseWindowsProxy('  127.0.0.1:10809  '), '127.0.0.1:10809');
+    });
+
+    test('没有代理时返回空串', () {
+      expect(UpdateService.parseWindowsProxy(''), '');
+      expect(UpdateService.parseWindowsProxy('   '), '');
+    });
+  });
 }

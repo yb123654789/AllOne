@@ -20,6 +20,14 @@ class UiPrefs {
   /// 用户选择「跳过此版本」的版本号（不再提示该版本）
   static const String skippedUpdateKey = 'skippedUpdateVersion';
 
+  /// 更新用的网络代理：空 = 自动读系统代理；`direct` = 强制直连；
+  /// 其它 = 指定 `host:port`（如 127.0.0.1:7890）。
+  /// 国内直连 GitHub 基本不通，所以这个开关很实用。
+  static const String updateProxyKey = 'updateProxy';
+
+  /// 更新代理解析结果（供界面显示）
+  String get updateProxy => str(updateProxyKey);
+
   String str(String key, {String fallback = ''}) {
     final v = values[key];
     return v is String && v.isNotEmpty ? v : fallback;

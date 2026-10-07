@@ -49,10 +49,81 @@ class UpdateService {
     return UpdateTarget.other;
   }
 
+  /// 解析 Windows「Internet 选项」里的代理字符串（纯函数，便于单测）。
+  ///
+  /// 注册表里可能是：
+  /// - `127.0.0.1:7890`
+  /// - `http=127.0.0.1:7890;https=127.0.0.1:7890`
+  /// - `http://127.0.0.1:7890`
+  /// 统一取成 `host:port`（优先 https）。
+  static String parseWindowsProxy(String proxyServer) {
+    var v = proxyServer.trim();
+    if (v.isEmpty) return '';
+    final https = RegExp(r'https=([^;]+)').firstMatch(v)?.group(1);
+    final http = RegExp(r'http=([^;]+)').firstMatch(v)?.group(1);
+    v = (https ?? http ?? v).trim();
+    v = v.replaceFirst(RegExp(r'^https?://'), '');
+    return v.split(';').first.trim();
+  }
+
+  /// 读取系统代理。
+  ///
+  /// 为什么要自己读：Dart 的 HttpClient **默认不使用系统代理**，
+  /// 而国内直连 GitHub 基本不通（实测 github.com / api.github.com 直接 RST），
+  /// 不接上代理的话应用内更新会永远「检查失败」。
+  /// 返回 `host:port`；没有代理返回空串。
+  static Future<String> detectSystemProxy() async {
+    if (Platform.isWindows) {
+      try {
+        final r = await Process.run('reg', [
+          'query',
+          r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings',
+        ]);
+        final out = r.stdout.toString();
+        final enabled = RegExp(
+          r'ProxyEnable\s+REG_DWORD\s+0x1',
+        ).hasMatch(out);
+        final m = RegExp(r'ProxyServer\s+REG_SZ\s+(\S+)').firstMatch(out);
+        if (enabled && m != null) return parseWindowsProxy(m.group(1)!);
+      } catch (_) {}
+      return '';
+    }
+    final env = Platform.environment;
+    return parseWindowsProxy(
+      env['HTTPS_PROXY'] ??
+          env['https_proxy'] ??
+          env['HTTP_PROXY'] ??
+          env['http_proxy'] ??
+          '',
+    );
+  }
+
+  /// 把代理设置应用到 HttpClient 上。
+  ///
+  /// [proxy]：空串 = 自动（读系统代理）；`direct` = 强制直连；其它 = 指定代理。
+  static Future<String> _applyProxy(HttpClient http, String? proxy) async {
+    if (proxy == 'direct') {
+      http.findProxy = (uri) => 'DIRECT';
+      return 'DIRECT';
+    }
+    final p = (proxy == null || proxy.isEmpty)
+        ? await detectSystemProxy()
+        : parseWindowsProxy(proxy);
+    if (p.isEmpty) {
+      http.findProxy = (uri) => 'DIRECT';
+      return 'DIRECT';
+    }
+    http.findProxy = (uri) => 'PROXY $p';
+    return 'PROXY $p';
+  }
+
   /// 检查是否有新版本。网络失败 / 没有发布时返回 null（不抛异常）。
+  ///
+  /// [proxy] 见 [_applyProxy]。
   static Future<UpdateInfo?> checkForUpdate({
     String? currentVersionOverride,
     HttpClient? client,
+    String? proxy,
   }) async {
     final current =
         currentVersionOverride ?? await UpdateService.currentVersion();
@@ -60,10 +131,11 @@ class UpdateService {
     final http = client ?? HttpClient();
     try {
       http.connectionTimeout = const Duration(seconds: 12);
+      await _applyProxy(http, proxy);
       final req = await http.getUrl(Uri.parse(_apiLatest));
       req.headers.set('Accept', 'application/vnd.github+json');
       req.headers.set('User-Agent', 'AllOne-Updater');
-      final resp = await req.close().timeout(const Duration(seconds: 15));
+      final resp = await req.close().timeout(const Duration(seconds: 20));
       if (resp.statusCode != 200) return null;
       final body = await resp.transform(utf8.decoder).join();
       final json = jsonDecode(body);
@@ -85,6 +157,7 @@ class UpdateService {
     UpdateAsset asset, {
     void Function(int received, int total)? onProgress,
     HttpClient? client,
+    String? proxy,
   }) async {
     final dir = await _downloadDir();
     final file = File(p.join(dir.path, asset.name));
@@ -93,6 +166,7 @@ class UpdateService {
     final http = client ?? HttpClient();
     try {
       http.connectionTimeout = const Duration(seconds: 20);
+      await _applyProxy(http, proxy);
       final req = await http.getUrl(Uri.parse(asset.url));
       req.headers.set('User-Agent', 'AllOne-Updater');
       req.followRedirects = true;

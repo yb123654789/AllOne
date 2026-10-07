@@ -32,7 +32,7 @@ Future<void> checkUpdateOnStartup(
     if (t != null && DateTime.now().difference(t).inHours < 24) return;
   }
 
-  final info = await UpdateService.checkForUpdate();
+  final info = await UpdateService.checkForUpdate(proxy: prefs.updateProxy);
   await ref
       .read(uiPrefsProvider.notifier)
       .set(UiPrefs.lastUpdateCheckKey, DateTime.now().toIso8601String());
@@ -53,6 +53,8 @@ Future<void> showUpdateDialog(
 }) async {
   final current = await UpdateService.currentVersion();
   if (!context.mounted) return;
+  // 更新用的网络代理：空 = 自动读系统代理，direct = 直连，其它 = host:port
+  final proxy = ref.read(uiPrefsProvider).valueOrNull?.updateProxy ?? '';
 
   var target = info;
   if (target == null) {
@@ -74,18 +76,26 @@ Future<void> showUpdateDialog(
         ),
       ),
     );
-    target = await UpdateService.checkForUpdate();
+    target = await UpdateService.checkForUpdate(proxy: proxy);
     if (!context.mounted) return;
     Navigator.pop(context); // 关掉「检查中」
     await checking;
     if (!context.mounted) return;
     if (target == null) {
+      final sysProxy = await UpdateService.detectSystemProxy();
+      if (!context.mounted) return;
       await _info(
         context,
-        '已是最新版本',
-        '当前版本：$current\n没有检测到新版本。\n\n'
-        '（检查的是 GitHub Releases 上最新一次发布；'
-        '网络不通或没有发布时也会走到这里。）',
+        '没有检测到新版本',
+        '当前版本：$current\n'
+        '没有检测到比它更新的发布。\n\n'
+        '可能的原因：\n'
+        '1. 确实已经是最新版本；\n'
+        '2. 网络问题（国内直连 GitHub 常被重置）——'
+        '当前${sysProxy.isEmpty ? '未检测到系统代理' : '系统代理为 $sysProxy'}'
+        '${proxy == 'direct' ? '，且已手动设为直连' : ''}；\n'
+        '3. 上游还没有发布新版本。\n\n'
+        '如果是网络问题，可在「设置 → 更新代理」里指定代理（如 127.0.0.1:7890）。',
       );
       return;
     }
@@ -218,6 +228,7 @@ Future<void> showUpdateDialog(
                       target!,
                       asset,
                       backup: backup,
+                      proxy: proxy,
                       onProgress: (v, s) => setState(() {
                         progress = v;
                         status = s;
@@ -246,6 +257,7 @@ Future<String?> _downloadAndInstall(
   UpdateAsset asset, {
   required bool backup,
   required void Function(double progress, String status) onProgress,
+  String proxy = '',
 }) async {
   try {
     if (backup) {
@@ -262,6 +274,7 @@ Future<String?> _downloadAndInstall(
     onProgress(0, '正在下载安装包…');
     final file = await UpdateService.download(
       asset,
+      proxy: proxy,
       onProgress: (got, total) {
         final v = total > 0 ? got / total : 0.0;
         onProgress(
