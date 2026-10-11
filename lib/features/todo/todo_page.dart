@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/models/ui_prefs.dart';
+import '../../core/storage/ui_prefs_providers.dart';
 import '../../core/theme.dart';
 import 'todo_edit_page.dart';
 import 'todo_models.dart';
@@ -63,6 +65,11 @@ class _TodoPageState extends ConsumerState<TodoPage> {
       appBar: AppBar(
         title: Text(_showSearch ? '' : '待办事项'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.sort),
+            tooltip: '排序方式',
+            onPressed: _showSortModeSheet,
+          ),
           IconButton(
             icon: Badge(
               isLabelVisible: _filterTags.isNotEmpty,
@@ -223,6 +230,65 @@ class _TodoPageState extends ConsumerState<TodoPage> {
   }
 
   /// 按标签交叉筛选对话框：多选标签（AND 交集），支持模糊搜索
+  /// 排序方式选择（底部弹窗）。
+  ///
+  /// 排序方式**只管顶层列表**：子任务的顺序始终由你自己排
+  /// （每条子任务的「⋮」里都有上移 / 下移），不会被自动排序覆盖。
+  Future<void> _showSortModeSheet() async {
+    final prefs = ref.read(uiPrefsProvider).valueOrNull;
+    final current = todoSortModeFrom(prefs?.raw(UiPrefs.todoSortModeKey));
+    final picked = await showModalBottomSheet<TodoSortMode>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        // 小屏 / 横屏时内容会超过弹窗可用高度，必须可滚动
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '排序方式',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+            for (final m in TodoSortMode.values)
+              ListTile(
+                leading: Icon(
+                  m == current
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: m == current
+                      ? AppTheme.primary
+                      : AppTheme.textSecondary,
+                ),
+                title: Text(m.label),
+                subtitle: Text(m.hint, style: const TextStyle(fontSize: 11)),
+                onTap: () => Navigator.pop(ctx, m),
+              ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 16),
+              child: Text(
+                '子任务的顺序始终由你自己排（子任务的「⋮」里有上移 / 下移），不受这里影响。',
+                style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+              ),
+            ),
+          ],
+          ),
+        ),
+      ),
+    );
+    if (picked == null || picked == current) return;
+    await ref.read(todoListProvider.notifier).setSortMode(picked);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已切换为「${picked.label}」')),
+    );
+  }
+
   Future<void> _showTagFilterDialog() async {
     final allTags = _collectTodoTags(
       ref.read(todoListProvider).valueOrNull ?? const [],
@@ -533,6 +599,22 @@ class _TodoNodeState extends ConsumerState<_TodoNode> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
+              leading: const Icon(
+                Icons.arrow_upward,
+                color: AppTheme.primary,
+              ),
+              title: const Text('上移'),
+              onTap: () => Navigator.pop(ctx, 'up'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.arrow_downward,
+                color: AppTheme.primary,
+              ),
+              title: const Text('下移'),
+              onTap: () => Navigator.pop(ctx, 'down'),
+            ),
+            ListTile(
               leading: const Icon(Icons.add_task, color: AppTheme.primary),
               title: const Text('添加子任务'),
               onTap: () => Navigator.pop(ctx, 'add'),
@@ -555,6 +637,25 @@ class _TodoNodeState extends ConsumerState<_TodoNode> {
       ),
     );
     if (!mounted) return;
+    if (act == 'up' || act == 'down') {
+      final wasManual =
+          todoSortModeFrom(
+            ref.read(uiPrefsProvider).valueOrNull?.raw(UiPrefs.todoSortModeKey),
+          ) ==
+          TodoSortMode.manual;
+      await ref.read(todoListProvider.notifier).moveItem(e.id, act == 'up' ? -1 : 1);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            wasManual
+                ? '已${act == 'up' ? '上移' : '下移'}'
+                : '已切换为「手动排序」并调整了顺序',
+          ),
+        ),
+      );
+      return;
+    }
     if (act == 'add') {
       Navigator.push(
         context,

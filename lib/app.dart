@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/models/common.dart';
 import 'core/models/nav_settings.dart';
 import 'core/storage/nav_providers.dart';
 import 'core/theme.dart';
 import 'core/updater/update_ui.dart';
 import 'features/calendar/calendar_page.dart';
+import 'features/calendar/calendar_repository.dart';
 import 'features/diary/diary_page.dart';
 import 'features/habit/habit_page.dart';
 import 'features/ledger/ledger_page.dart';
+import 'features/quest/quest_page.dart';
 import 'features/schedule/schedule_page.dart';
 import 'features/todo/todo_page.dart';
 import 'features/tools/tools_page.dart';
@@ -41,6 +44,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   static final Map<String, Widget> _pages = {
     'diary': const DiaryPage(),
     'todo': const TodoPage(),
+    'quest': const QuestPage(),
     'habit': const HabitPage(),
     'schedule': const SchedulePage(),
     'ledger': const LedgerPage(),
@@ -51,9 +55,16 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   void initState() {
     super.initState();
-    // 启动时静默检查更新（每天最多一次；发现新版本才提示，失败不打扰）
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) checkUpdateOnStartup(context, ref);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      // 启动时静默检查更新（每天最多一次；发现新版本才提示，失败不打扰）
+      checkUpdateOnStartup(context, ref);
+      // 倒数日生命周期：把「每年重复」的日子推进到下一次（生日过了自动滚到明年）。
+      // 这里静默执行、不弹窗；过期**单次**项的归档需要用户确认，
+      // 只在「特殊日子 · 倒数日」页里询问。
+      await ref
+          .read(specialDayListProvider.notifier)
+          .advanceRecurring(today: AppTime.dateOnly(DateTime.now()));
     });
   }
 

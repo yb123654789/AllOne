@@ -1,59 +1,184 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/models/ui_prefs.dart';
 import '../../core/storage/storage_providers.dart';
+import '../../core/storage/ui_prefs_providers.dart';
 import 'todo_models.dart';
 
 /// 待办列表 Notifier（树形：每条目一个文件，子任务内嵌于父 JSON）。
+///
+/// ⚠️ **所有写操作都从磁盘读最新值再改**（`_allFromDisk`）。
+/// 原因：写完之后会 `invalidateSelf()`，而 rebuild 完成前 `state` 仍是旧快照
+/// —— 连续操作（连点两下）会互相覆盖；数据没加载完时更糟：
+/// [_persist] 会**删掉不在列表里的文件**，拿空列表去写就会把待办全删光。
 class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
   static const _dir = 'todo/items';
 
   @override
   Future<List<TodoItem>> build() async {
-    final store = await ref.watch(jsonStoreProvider.future);
+    // 监听偏好：排序方式一变，列表自动重排
+    final prefs = await ref.watch(uiPrefsProvider.future);
+    await ref.watch(jsonStoreProvider.future);
+    final mode = todoSortModeFrom(prefs.raw(UiPrefs.todoSortModeKey));
+    return sortTodos(await _allFromDisk(), mode);
+  }
+
+  Future<TodoSortMode> _mode() async {
+    final prefs = await ref.read(uiPrefsProvider.future);
+    return todoSortModeFrom(prefs.raw(UiPrefs.todoSortModeKey));
+  }
+
+  /// 从磁盘读全部顶层待办
+  Future<List<TodoItem>> _allFromDisk() async {
+    final store = await ref.read(jsonStoreProvider.future);
     final files = await store.listFiles(_dir);
     final list = <TodoItem>[];
     for (final f in files) {
       final json = await store.read('$_dir/$f');
       if (json != null) list.add(TodoItem.fromJson(json));
     }
-    list.sort((a, b) {
-      // 未完成在前，再按截止时间
-      if (a.status != b.status) return a.status == TodoStatus.pending ? -1 : 1;
-      return (a.deadline.date + a.deadline.time).compareTo(
-        b.deadline.date + b.deadline.time,
-      );
-    });
     return list;
   }
 
-  /// 取当前待办树；**若尚未加载完成则先等待加载**。
-  ///
-  /// 这个方法是防「整表被清空」的关键：[_persist] 会重写全部顶层文件，
-  /// 并把不在列表里的文件**删掉**。如果这里像以前那样退化成
-  /// `state.valueOrNull ?? []`，那么只要在数据还没加载好时触发任意一次写操作
-  /// （例如刚打开 App 立刻点了保存 / 删除 / 勾选完成），
-  /// 拿到的就是空列表，[_persist] 会把**磁盘上所有待办全部删除**。
-  ///
-  /// 因此这里宁可等待也不猜：拿不到数据就等它加载完。
-  Future<List<TodoItem>> _treeOrLoad() async {
-    final current = state.valueOrNull;
-    if (current != null) return current;
-    return await ref.read(todoListProvider.future);
+  // ── 排序 ────────────────────────────────────────────────────────────────
+
+  /// 切换排序方式。切到「手动」时，若 order 还没初始化，
+  /// 先把**当前显示顺序**固化下来 —— 这样切过去顺序不会突变，再从那里微调。
+  Future<void> setSortMode(TodoSortMode mode) async {
+    // 顺序很重要：**先按「旧的排序方式」把当前顺序固化，再写偏好**。
+    // 反过来的话，_freezeCurrentOrder 会读到新的（手动）模式，
+    // 而这时 order 还全是 0，就会退化成按创建时间排 —— 用户看到的顺序会突变。
+    if (mode == TodoSortMode.manual) {
+      await _freezeCurrentOrder();
+    }
+    await ref
+        .read(uiPrefsProvider.notifier)
+        .set(UiPrefs.todoSortModeKey, mode.name);
+    ref.invalidateSelf();
   }
 
-  /// 保存：若 id 已存在则替换（编辑），否则作为新顶层条目追加。
-  Future<void> saveItem(TodoItem item) async {
-    final tree = await _treeOrLoad();
-    final exists = _findInTree(tree, item.id);
-    final newTree = <TodoItem>[...tree];
-    if (exists != null) {
-      newTree
-        ..clear()
-        ..addAll(_mapTree(tree, item.id, (_) => item));
-    } else {
-      newTree.add(item);
+  /// order 是否还没初始化（旧数据 / 从没手动排过：所有顶层都是 0）
+  bool _orderUninitialized(List<TodoItem> tree) =>
+      tree.length > 1 && tree.every((t) => t.order == 0);
+
+  /// 把当前显示顺序固化成 order（1..n）
+  Future<void> _freezeCurrentOrder() async {
+    final tree = await _allFromDisk();
+    if (!_orderUninitialized(tree)) return;
+    final mode = await _mode();
+    final ordered = sortTodos(tree, mode);
+    final orderById = <String, int>{
+      for (var i = 0; i < ordered.length; i++) ordered[i].id: i + 1,
+    };
+    await _persist([
+      for (final t in tree) t.copyWith(order: orderById[t.id] ?? t.order),
+    ]);
+  }
+
+  /// 上移 / 下移（[delta] = -1 / +1）。
+  ///
+  /// - **顶层**条目：改 order（会自动重排为 1..n）；
+  /// - **子任务**：重排父节点的 `children` 数组；
+  /// - 当前不是「手动」排序时：先切到手动并固化当前顺序，再移动
+  ///   （顺序不会突变，用户点一下就是想要的结果）。
+  Future<void> moveItem(String id, int delta) async {
+    final tree = await _allFromDisk();
+
+    // ① 顶层
+    if (tree.any((t) => t.id == id)) {
+      if (await _mode() != TodoSortMode.manual) {
+        // 同上：先按旧模式固化当前顺序，再切到手动，最后重试移动
+        await _freezeCurrentOrder();
+        await ref
+            .read(uiPrefsProvider.notifier)
+            .set(UiPrefs.todoSortModeKey, TodoSortMode.manual.name);
+        return moveItem(id, delta);
+      }
+      final ordered = sortTodos(tree, TodoSortMode.manual);
+      final i = ordered.indexWhere((t) => t.id == id);
+      final j = i + delta;
+      if (i < 0 || j < 0 || j >= ordered.length) return; // 到边界：静默
+      final ids = ordered.map((t) => t.id).toList();
+      final tmp = ids[i];
+      ids[i] = ids[j];
+      ids[j] = tmp;
+      final orderById = <String, int>{
+        for (var k = 0; k < ids.length; k++) ids[k]: k + 1,
+      };
+      await _persist([
+        for (final t in tree) t.copyWith(order: orderById[t.id] ?? t.order),
+      ]);
+      return;
     }
-    await _persist(newTree);
+
+    // ② 子任务：重排父节点的 children
+    final parentId = _findParentId(tree, id);
+    if (parentId == null) return;
+    await _persist(
+      _mapTree(tree, parentId, (parent) {
+        final kids = [...parent.children];
+        final i = kids.indexWhere((c) => c.id == id);
+        final j = i + delta;
+        if (i < 0 || j < 0 || j >= kids.length) return parent;
+        final tmp = kids[i];
+        kids[i] = kids[j];
+        kids[j] = tmp;
+        return parent.copyWith(children: kids, updatedAt: DateTime.now());
+      }),
+    );
+  }
+
+  /// 新建条目在手动顺序里的插入位置。
+  ///
+  /// 返回的是**插入点的 order 值**（不是索引）：调用方会把 `>= 该值` 的条目
+  /// 统一 +1 腾位，然后把新条目放在这个值上。
+  /// 按截止时间找位置；没有截止时间的一律排最后。
+  int _insertOrderFor(List<TodoItem> tree, TodoItem item) {
+    final seq = [...tree]..sort((a, b) => a.order.compareTo(b.order));
+    final d = item.deadline.date;
+    if (d.isEmpty) return _nextOrder(tree);
+    final target = d + item.deadline.time;
+    for (final s in seq) {
+      final od = s.deadline.date;
+      // 遇到的第一个「无截止时间」或「比新条目晚」的条目 → 插在它前面
+      if (od.isEmpty || (od + s.deadline.time).compareTo(target) > 0) {
+        return s.order;
+      }
+    }
+    return _nextOrder(tree);
+  }
+
+  int _nextOrder(List<TodoItem> tree) {
+    var max = 0;
+    for (final t in tree) {
+      if (t.order > max) max = t.order;
+    }
+    return max + 1;
+  }
+
+  // ── 写入 ────────────────────────────────────────────────────────────────
+
+  /// 保存：若 id 已存在则替换（编辑），否则作为新顶层条目插入。
+  ///
+  /// 新建时的落位：**手动排序**下按截止时间插到合适位置（没有截止时间排最后）；
+  /// 其它排序方式下顺序由排序规则决定，这里只保证 order 单调递增。
+  Future<void> saveItem(TodoItem item) async {
+    final tree = await _allFromDisk();
+    final exists = _findInTree(tree, item.id);
+    if (exists != null) {
+      await _persist(_mapTree(tree, item.id, (_) => item));
+      return;
+    }
+    final mode = await _mode();
+    final order = mode == TodoSortMode.manual
+        ? _insertOrderFor(tree, item)
+        : _nextOrder(tree);
+    // 给插入点及其后的条目腾位
+    final shifted = [
+      for (final t in tree)
+        t.copyWith(order: t.order >= order ? t.order + 1 : t.order),
+    ];
+    await _persist([...shifted, item.copyWith(order: order)]);
   }
 
   /// 删除任意节点（顶层或子任务）；删除顶层时同时移除其文件。
@@ -63,13 +188,12 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
   /// 因此删除顶层条目时必须连同该附件目录一起清理，
   /// 否则会留下永远无法访问的孤立附件。
   Future<void> deleteItem(String id) async {
-    final tree = await _treeOrLoad();
+    final tree = await _allFromDisk();
     final newTree = _removeTree(tree, id);
-    // 被移除的顶层条目（含其整棵子树）id
     final kept = newTree.map((e) => e.id).toSet();
     final removed = tree
+        .where((e) => !kept.contains(e.id))
         .map((e) => e.id)
-        .where((e) => !kept.contains(e))
         .toList();
     await _persist(newTree, removedIds: removed);
   }
@@ -77,7 +201,7 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
   /// 设置任意节点状态（顶层 / 子任务递归定位）。
   /// 若标记为完成（done），会向上自动传播：父节点的所有直接子任务均完成时，父节点自动完成。
   Future<void> setStatus(String id, TodoStatus status) async {
-    final tree = await _treeOrLoad();
+    final tree = await _allFromDisk();
     var newTree = _mapTree(
       tree,
       id,
@@ -91,7 +215,7 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
 
   /// 把 id 节点（含整棵子树）移入回收站（archived）
   Future<void> archiveItem(String id) async {
-    final tree = await _treeOrLoad();
+    final tree = await _allFromDisk();
     await _persist(
       _mapTree(tree, id, (e) => _withSubtreeStatus(e, TodoStatus.archived)),
     );
@@ -99,7 +223,7 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
 
   /// 把 id 节点（含整棵子树）从回收站恢复（pending）
   Future<void> restoreItem(String id) async {
-    final tree = await _treeOrLoad();
+    final tree = await _allFromDisk();
     await _persist(
       _mapTree(tree, id, (e) => _withSubtreeStatus(e, TodoStatus.pending)),
     );
@@ -107,7 +231,7 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
 
   /// 给指定父节点添加子任务
   Future<void> addChild(String parentId, TodoItem child) async {
-    final tree = await _treeOrLoad();
+    final tree = await _allFromDisk();
     await _persist(
       _mapTree(
         tree,
@@ -120,6 +244,20 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
     );
   }
 
+  /// 清理回收站：彻底删除「已完成 / 已归档」且最后更新早于 [before] 的顶层条目。
+  ///
+  /// [before] 为 null 表示清空整个回收站（不限时间）。
+  /// 返回被删除的条数。附件目录一并清理，避免留下孤立附件。
+  Future<int> purgeTrash({DateTime? before}) async {
+    final tree = await _allFromDisk();
+    final victims = purgedItemIds(tree, before: before);
+    if (victims.isEmpty) return 0;
+    final victimSet = victims.toSet();
+    final kept = tree.where((e) => !victimSet.contains(e.id)).toList();
+    await _persist(kept, removedIds: victims);
+    return victims.length;
+  }
+
   // —— 树操作辅助 ——
 
   /// 在树中查找指定 id 的节点
@@ -127,6 +265,16 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
     for (final i in items) {
       if (i.id == id) return i;
       final found = _findInTree(i.children, id);
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  /// 找到 id 节点的**父节点** id（顶层节点返回 null）
+  String? _findParentId(List<TodoItem> items, String id) {
+    for (final i in items) {
+      if (i.children.any((c) => c.id == id)) return i.id;
+      final found = _findParentId(i.children, id);
       if (found != null) return found;
     }
     return null;
@@ -226,20 +374,6 @@ class TodoListNotifier extends AsyncNotifier<List<TodoItem>> {
       await store.deleteDirectory('$_dir/$id/media');
     }
     ref.invalidateSelf();
-  }
-
-  /// 清理回收站：彻底删除「已完成 / 已归档」且最后更新早于 [before] 的顶层条目。
-  ///
-  /// [before] 为 null 表示清空整个回收站（不限时间）。
-  /// 返回被删除的条数。附件目录一并清理，避免留下孤立附件。
-  Future<int> purgeTrash({DateTime? before}) async {
-    final tree = await _treeOrLoad();
-    final victims = purgedItemIds(tree, before: before);
-    if (victims.isEmpty) return 0;
-    final victimSet = victims.toSet();
-    final kept = tree.where((e) => !victimSet.contains(e.id)).toList();
-    await _persist(kept, removedIds: victims);
-    return victims.length;
   }
 }
 

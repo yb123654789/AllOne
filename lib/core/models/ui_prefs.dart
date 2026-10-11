@@ -25,6 +25,22 @@ class UiPrefs {
   /// 国内直连 GitHub 基本不通，所以这个开关很实用。
   static const String updateProxyKey = 'updateProxy';
 
+  /// 任务父进度的加权系数（`{work, invest, milestone}`）。
+  ///
+  /// 放在通用偏好里而不是任务模型里：它是「用户口味」而非任务数据，
+  /// 且 core 不依赖 feature —— 具体解析由任务模块自己做。
+  static const String questWeightsKey = 'questWeights';
+
+  /// 任务详情页是否隐藏「已了结」（已完成 / 已放弃）的子项目，默认隐藏。
+  static const String hideResolvedSubtasksKey = 'hideResolvedSubtasks';
+
+  /// 待办的排序方式（`manual` / `deadline` / `created` / `title`）。
+  /// 默认 `deadline`：保持加这个功能之前的行为不变。
+  static const String todoSortModeKey = 'todoSortMode';
+
+  /// 读取原始值（供各 feature 自己解析，core 不引入业务类型）
+  Object? raw(String key) => values[key];
+
   /// 更新代理解析结果（供界面显示）
   String get updateProxy => str(updateProxyKey);
 

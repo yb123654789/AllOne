@@ -32,6 +32,12 @@ const List<AppFeature> kAppFeatures = [
     selectedIcon: Icons.check_circle,
   ),
   AppFeature(
+    key: 'quest',
+    label: '任务',
+    icon: Icons.flag_outlined,
+    selectedIcon: Icons.flag,
+  ),
+  AppFeature(
     key: 'habit',
     label: '习惯',
     icon: Icons.repeat_outlined,
