@@ -14,6 +14,7 @@ import '../todo/todo_models.dart';
 import '../todo/todo_repository.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
+import 'day_schedule_view.dart';
 import 'special_days_page.dart';
 
 /// 日历模块入口页：当天 / 当月 / 当年 三视图聚合。
@@ -82,7 +83,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                     habits,
                     checkins,
                     courses,
-                    specials,
+                    // 已归档（回收站）的特殊日子不再出现在日历格子里
+                    specials.where((s) => !s.archived).toList(),
                     holidays,
                   ),
                   loading: () =>
@@ -147,7 +149,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 }
 
 /// —— 当天视图 ——
-class DayView extends StatelessWidget {
+class DayView extends ConsumerWidget {
   final List<TodoItem> todos;
   final List<DiaryEntry> diaries;
   final List<Habit> habits;
@@ -168,7 +170,7 @@ class DayView extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
     final today = AppTime.dateOnly(now);
 
@@ -176,18 +178,7 @@ class DayView extends StatelessWidget {
     final todaySpecials = specials.where((s) => s.occursOn(today)).toList()
       ..sort((a, b) => a.name.compareTo(b.name));
 
-    // 今天待办（未完成），按截止时间排序
-    final todayTodos =
-        todos
-            .where(
-              (t) => t.status != TodoStatus.done && t.deadline.date == today,
-            )
-            .toList()
-          ..sort((a, b) => a.deadline.time.compareTo(b.deadline.time));
-
-    // 今天课程
-    final todayCourses = courses.where((c) => c.weekday == now.weekday).toList()
-      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+    // 今天待办 / 课程 / 任务 / 里程碑都交给 DayScheduleView 自己算（见该组件）
 
     // 今天习惯（已打卡 + 待打卡）
     final doneHabits = habits
@@ -238,31 +229,8 @@ class DayView extends StatelessWidget {
                 '${d.tags.isEmpty ? '' : '  ${d.tags.join(' · ')}'}',
               ),
             ),
-        _header('待办事项（${todayTodos.length}）'),
-        if (todayTodos.isEmpty)
-          _empty('今天没有到期待办')
-        else
-          for (final t in todayTodos)
-            ListTile(
-              dense: true,
-              leading: Icon(Icons.schedule, color: hexColor(t.deadline.color)),
-              title: Text(t.title.isEmpty ? '（无标题）' : t.title),
-              subtitle: Text(
-                '${t.deadline.time.isEmpty ? '全天' : t.deadline.time}'
-                '${t.location.text.isEmpty ? '' : ' · ${t.location.text}'}',
-              ),
-            ),
-        _header('课程（${todayCourses.length}）'),
-        if (todayCourses.isEmpty)
-          _empty('今天没有课')
-        else
-          for (final c in todayCourses)
-            ListTile(
-              dense: true,
-              leading: const Icon(Icons.school, color: AppTheme.primary),
-              title: Text(c.name),
-              subtitle: Text('${c.startTime}-${c.endTime}  ${c.classroom}'),
-            ),
+        // 当天日程表：课程 + 待办 + 任务 + 里程碑（时间轴 + 待安排）
+        const DayScheduleView(),
         _header('习惯打卡（已打卡 ${doneHabits.length} / ${habits.length}）'),
         if (habits.isEmpty)
           _empty('还没有习惯')

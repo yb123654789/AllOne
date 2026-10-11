@@ -11,6 +11,8 @@ import '../habit/habit_models.dart';
 import '../habit/habit_repository.dart';
 import '../ledger/ledger_models.dart';
 import '../ledger/ledger_repository.dart';
+import '../schedule/schedule_logic.dart';
+import '../schedule/schedule_models.dart';
 import '../schedule/schedule_repository.dart';
 import '../todo/todo_models.dart';
 import '../todo/todo_repository.dart';
@@ -239,14 +241,22 @@ class TextExporter {
     // 容错：与 `habit_page.dart` 的 `_weekdayName` 保持一致，
     // 越界的 weekday 不直接下标，避免 RangeError 中断整份导出
     String weekdayName(int d) => (d >= 1 && d <= 7) ? weekdayNames[d] : '';
+    final sections =
+        ref.read(sectionListProvider).valueOrNull ?? kDefaultSections;
     for (final c in courses) {
       b.write('## ${c.name}\n');
-      final day = weekdayName(c.weekday);
-      b.write(
-        '- ${day.isEmpty ? '' : '$day '}${c.startTime}-${c.endTime} ${c.classroom}\n',
-      );
+      // 多时段：每个时段一行（含节次与时间）
+      for (final s in c.sessions) {
+        final day = weekdayName(s.weekday);
+        b.write(
+          '- ${day.isEmpty ? '' : '$day '}'
+          '${ScheduleLogic.sectionLabel(s, sections)} '
+          '${ScheduleLogic.clockOf(s, sections)}'
+          '${s.classroom.isEmpty ? '' : ' ${s.classroom}'}\n',
+        );
+        if (s.weeks.isNotEmpty) b.write('- 周次：${s.weeks.join(', ')}\n');
+      }
       if (c.teacher.isNotEmpty) b.write('- 教师：${c.teacher}\n');
-      if (c.weeks.isNotEmpty) b.write('- 周次：${c.weeks.join(', ')}\n');
       if (c.notes.isNotEmpty) b.write('- 说明：${c.notes.trim()}\n');
       b.write('\n');
     }
@@ -292,7 +302,10 @@ class TextExporter {
   }
 
   static String _calendar(WidgetRef ref) {
-    final specials = ref.read(specialDayListProvider).valueOrNull ?? [];
+    // 回收站里的（已归档）特殊日子不导出
+    final specials = (ref.read(specialDayListProvider).valueOrNull ?? [])
+        .where((s) => !s.archived)
+        .toList();
     final b = StringBuffer('# 日历特殊日子\n\n');
     if (specials.isEmpty) {
       b.write('（暂无用户自定义的特殊日子；内置节假日随日历界面自动显示）\n');

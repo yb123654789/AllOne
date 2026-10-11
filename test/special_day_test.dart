@@ -126,4 +126,79 @@ void main() {
       expect(e.color, '#1E88E5');
     });
   });
+
+  group('特殊日子 - 生命周期字段', () {
+    test('JSON 往返包含 originDate / archived / archivedAt', () {
+      const s = SpecialDay(
+        id: 'a',
+        date: '2027-03-12',
+        originDate: '1998-03-12',
+        name: '生日',
+        repeatYearly: true,
+        archived: true,
+        archivedAt: '2026-10-11',
+      );
+      final back = SpecialDay.fromJson(s.toJson());
+      expect(back.originDate, '1998-03-12');
+      expect(back.archived, isTrue);
+      expect(back.archivedAt, '2026-10-11');
+    });
+
+    test('旧数据没有新字段时按「未归档、无原始日期」处理', () {
+      final back = SpecialDay.fromJson(const {
+        'id': 'a',
+        'date': '2026-01-01',
+        'name': '元旦纪念',
+        'type': 'custom',
+        'color': '#E5484D',
+      });
+      expect(back.archived, isFalse);
+      expect(back.archivedAt, isNull);
+      expect(back.originDate, isNull);
+      expect(back.anniversaryBase, '2026-01-01');
+      expect(back.isExpiredOn('2026-01-02'), isTrue); // 旧数据一样参与生命周期
+    });
+
+    test('归档日期只在归档时才有值，恢复后清掉', () {
+      final s = day('2026-01-01');
+      expect(s.archivedOn('2026-01-02').archivedAt, '2026-01-02');
+      expect(s.archivedOn('2026-01-02').restored().archivedAt, isNull);
+      expect(s.archivedOn('2026-01-02').restored().archived, isFalse);
+      expect(s.toJson().containsKey('archivedAt'), isFalse);
+    });
+
+    test('copyWith 保留原始日期与归档状态（改名不能把倒数滚回去）', () {
+      const s = SpecialDay(
+        id: 'a',
+        date: '2027-03-12',
+        originDate: '1998-03-12',
+        name: '生日',
+        repeatYearly: true,
+        archived: true,
+        archivedAt: '2026-10-11',
+      );
+      final e = s.copyWith(name: '老婆生日');
+      expect(e.date, '2027-03-12');
+      expect(e.originDate, '1998-03-12');
+      expect(e.archived, isTrue);
+      expect(e.archivedAt, '2026-10-11');
+      expect(e.name, '老婆生日');
+    });
+
+    test('周年数以原始日期为准（推进后仍然正确）', () {
+      const s = SpecialDay(
+        id: 'a',
+        date: '2027-03-12', // 已经推进到下一次
+        originDate: '1998-03-12', // 原始日期
+        repeatYearly: true,
+      );
+      expect(s.anniversaryYears('2026-10-11'), 29);
+      // 没有原始日期时回退用 date（旧数据行为不变）
+      expect(
+        const SpecialDay(id: 'b', date: '1998-03-12', repeatYearly: true)
+            .anniversaryYears('2026-10-11'),
+        29,
+      );
+    });
+  });
 }

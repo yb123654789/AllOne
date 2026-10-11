@@ -272,3 +272,102 @@ class CheckinMap {
     entries: (j ?? {}).map((k, v) => MapEntry(k, (v as num).toInt())),
   );
 }
+
+/// 修改打卡记录的动作类型
+enum HabitEditAction {
+  checkin, // 补打卡（在原有值上累加）
+  markUndone, // 标记「未完成」
+  clear, // 清除该天记录
+}
+
+/// 一次（批量）修改打卡记录的**审计日志**。
+///
+/// 需求来源：热力图上改动历史记录必须
+/// **手动触发 + 可一次改多天 + 写清原因**，并且这些改动要被收录、可回看。
+/// 日志只追加、不修改、不删除（除非习惯本身被彻底删除）。
+class HabitEditLog {
+  final String id;
+  final DateTime at;
+
+  /// 改动动作
+  final HabitEditAction action;
+
+  /// 本次改动的日期列表（yyyy-MM-dd，已排序）
+  final List<String> dates;
+
+  /// 补打卡时的每次数值；其它动作为 0
+  final int amount;
+
+  /// 改动前的原始值：date -> 原值（0 表示原本没有记录）
+  final Map<String, int> before;
+
+  /// 原因（必填，由界面校验）
+  final String reason;
+
+  const HabitEditLog({
+    required this.id,
+    required this.at,
+    required this.action,
+    required this.dates,
+    this.amount = 0,
+    this.before = const {},
+    required this.reason,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'at': at.toIso8601String(),
+    'action': action.name,
+    'dates': dates,
+    'amount': amount,
+    'before': before,
+    'reason': reason,
+  };
+
+  factory HabitEditLog.fromJson(Map<String, dynamic> j) => HabitEditLog(
+    id: j['id'] as String? ?? '',
+    at: DateTime.tryParse(j['at'] as String? ?? '') ?? DateTime.now(),
+    action: HabitEditAction.values.firstWhere(
+      (e) => e.name == (j['action'] as String?),
+      orElse: () => HabitEditAction.checkin,
+    ),
+    dates: (j['dates'] as List?)?.whereType<String>().toList() ?? const [],
+    amount: (j['amount'] as num?)?.toInt() ?? 0,
+    before:
+        (j['before'] as Map?)?.map(
+          (k, v) => MapEntry('$k', (v as num?)?.toInt() ?? 0),
+        ) ??
+        const {},
+    reason: j['reason'] as String? ?? '',
+  );
+
+  /// 动作文案（修改记录列表用）
+  String get actionLabel {
+    switch (action) {
+      case HabitEditAction.checkin:
+        return '补打卡';
+      case HabitEditAction.markUndone:
+        return '标记未完成';
+      case HabitEditAction.clear:
+        return '清除记录';
+    }
+  }
+
+  /// 变更摘要：如「2026-10-01 0→1」（最多列 3 天，其余省略）
+  String get changeSummary {
+    final parts = <String>[];
+    for (final d in dates.take(3)) {
+      final from = before[d] ?? 0;
+      final to = switch (action) {
+        HabitEditAction.checkin => (from < 0 ? 0 : from) + (amount <= 0 ? 1 : amount),
+        HabitEditAction.markUndone => -1,
+        HabitEditAction.clear => 0,
+      };
+      parts.add('$d ${_fmt(from)}→${_fmt(to)}');
+    }
+    if (dates.length > 3) parts.add('等 ${dates.length} 天');
+    return parts.join('，');
+  }
+
+  static String _fmt(int v) => v < 0 ? '未完成' : (v == 0 ? '无' : '$v');
+}

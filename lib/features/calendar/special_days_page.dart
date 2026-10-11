@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../core/widgets/color_picker.dart';
 import 'calendar_models.dart';
 import 'calendar_repository.dart';
+import 'special_days_trash_page.dart';
 
 /// 「特殊日子 · 倒数日」总览页。
 ///
@@ -14,6 +15,16 @@ import 'calendar_repository.dart';
 /// 时间一长就想不起来、也找不到。这里把**所有自定义特殊日子按时间排好**，
 /// 上面是「即将到来」（含每年重复的生日 / 纪念日，带倒数天数），
 /// 下面是「已经过去」，点一下即可编辑，右下角可新增。
+///
+/// 生命周期：进入本页时会
+/// ①把每年重复项推进到下一次（生日过了自动滚到明年，原始日期保留用于「第 N 周年」）；
+/// ②若有过期的**单次**日子，弹窗让用户确认是否移入回收站。
+class SpecialDaysPage extends ConsumerStatefulWidget {
+  const SpecialDaysPage({super.key});
+
+  @override
+  ConsumerState<SpecialDaysPage> createState() => _SpecialDaysPageState();
+}
 
 /// 添加 / 编辑特殊日子（日历页与本页共用同一个对话框）
 Future<void> showSpecialDayEditor(
@@ -43,6 +54,16 @@ Future<void> showSpecialDayEditor(
                   color: AppTheme.textSecondary,
                 ),
               ),
+              if (editing?.originDate != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '原始日期：${editing!.originDate}（用于「第 N 周年」，不随倒数推进）',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               TextField(
                 controller: nameCtrl,
@@ -57,7 +78,8 @@ Future<void> showSpecialDayEditor(
                 onChanged: (v) => setState(() => repeatYearly = v),
                 title: const Text('每年重复', style: TextStyle(fontSize: 14)),
                 subtitle: const Text(
-                  '生日、纪念日等：每年这一天都会出现在日历里，并自动倒数',
+                  '生日、纪念日等：每年这一天都会出现在日历里并自动倒数；'
+                  '过了当天会自动滚到下一次（原始日期仍用于算周年）',
                   style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                 ),
               ),
@@ -136,40 +158,157 @@ Future<void> showSpecialDayEditor(
   );
 
   if (saved != true) return;
+  final name = nameCtrl.text.trim();
   await ref
       .read(specialDayListProvider.notifier)
       .save(
-        SpecialDay(
-          // 编辑时沿用原 id 与原日期；新增时生成新 id
-          id: editing?.id ?? AppPaths.newId(),
-          date: editing?.date ?? date,
-          name: nameCtrl.text.trim(),
-          type: 'custom',
-          color: color,
-          repeatYearly: repeatYearly,
-        ),
+        // 编辑时走 copyWith：原 id、**已经推进到下一次的日期**、原始日期（周年数）
+        // 与归档状态都必须保留，否则一次改名就会把倒数滚回旧日期。
+        editing == null
+            ? SpecialDay(
+                id: AppPaths.newId(),
+                date: date,
+                name: name,
+                type: 'custom',
+                color: color,
+                repeatYearly: repeatYearly,
+              )
+            : editing.copyWith(
+                name: name,
+                color: color,
+                repeatYearly: repeatYearly,
+              ),
       );
 }
 
-/// 特殊日子总览（按时间排列的倒数日）
-class SpecialDaysPage extends ConsumerWidget {
-  const SpecialDaysPage({super.key});
+class _SpecialDaysPageState extends ConsumerState<SpecialDaysPage> {
+  /// 进页自动处理只做一次（避免重建 / 热重载时反复弹窗）
+  bool _lifecycleRan = false;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _runLifecycle());
+  }
+
+  /// 进页触发：①重复项推进到下一次；②过期单次项弹窗确认归档。
+  Future<void> _runLifecycle() async {
+    if (_lifecycleRan) return;
+    _lifecycleRan = true;
+    final today = AppTime.dateOnly(DateTime.now());
+    final notifier = ref.read(specialDayListProvider.notifier);
+    await notifier.advanceRecurring(today: today);
+    final pending = await notifier.pendingArchive(today: today);
+    if (pending.isEmpty || !mounted) return;
+    await _confirmArchive(pending, today);
+  }
+
+  /// 弹窗确认归档（列出具体条目，让用户知道要动哪些）
+  Future<void> _confirmArchive(List<SpecialDay> pending, String today) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('有过期的日子'),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('以下 ${pending.length} 条单次的日子已经过期，是否移入回收站？'),
+              const SizedBox(height: 8),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final s in pending)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            '· ${s.name.isEmpty ? '未命名' : s.name}（${s.date}）',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '移入回收站后仍可在回收站里恢复，也可以之后再说。',
+                style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('暂不处理'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('移入回收站'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await _archive(pending, today);
+  }
+
+  Future<void> _archive(List<SpecialDay> list, String today) async {
+    if (list.isEmpty) return;
+    await ref
+        .read(specialDayListProvider.notifier)
+        .archiveExpired(list.map((e) => e.id).toList(), today: today);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已把 ${list.length} 条过期的日子移入回收站')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(specialDayListProvider);
     final today = AppTime.dateOnly(DateTime.now());
     return Scaffold(
-      appBar: AppBar(title: const Text('特殊日子 · 倒数日')),
+      appBar: AppBar(
+        title: const Text('特殊日子 · 倒数日'),
+        actions: [
+          async.maybeWhen(
+            data: (all) {
+              final n = all.where((e) => e.archived).length;
+              return IconButton(
+                tooltip: n > 0 ? '回收站（$n）' : '回收站',
+                icon: Badge(
+                  isLabelVisible: n > 0,
+                  label: Text('$n'),
+                  child: const Icon(Icons.delete_outline),
+                ),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SpecialDaysTrashPage(),
+                  ),
+                ),
+              );
+            },
+            orElse: () => const SizedBox.shrink(),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
         label: const Text('添加'),
-        onPressed: () => _add(context, ref),
+        onPressed: () => _add(),
       ),
       body: async.when(
         data: (all) {
-          // 内置节假日不入库，这里只可能是用户自己建的日子
-          final list = all.where((s) => s.isCustom).toList();
+          // 内置节假日不入库；已归档的只在回收站里显示
+          final list = all
+              .where((s) => s.isCustom && !s.archived)
+              .toList();
           if (list.isEmpty) return _empty();
 
           final upcoming = list.where((s) => s.daysFrom(today) >= 0).toList()
@@ -184,12 +323,21 @@ class SpecialDaysPage extends ConsumerWidget {
               if (upcoming.isEmpty)
                 _hint('没有还没到的日子')
               else
-                for (final s in upcoming) _tile(context, ref, s, today),
-              _section('已经过去（${past.length}）'),
+                for (final s in upcoming) _tile(s, today),
+              _section(
+                '已经过去（${past.length}）',
+                // 弹窗里选了「暂不处理」时，这里还能手动归档
+                action: past.isEmpty
+                    ? null
+                    : TextButton(
+                        onPressed: () => _archive(past, today),
+                        child: const Text('全部归档'),
+                      ),
+              ),
               if (past.isEmpty)
                 _hint('没有已过去的日子')
               else
-                for (final s in past) _tile(context, ref, s, today),
+                for (final s in past) _tile(s, today),
             ],
           );
         },
@@ -215,12 +363,7 @@ class SpecialDaysPage extends ConsumerWidget {
     return n != 0 ? n : a.date.compareTo(b.date);
   }
 
-  Widget _tile(
-    BuildContext context,
-    WidgetRef ref,
-    SpecialDay s,
-    String today,
-  ) {
+  Widget _tile(SpecialDay s, String today) {
     final days = s.daysFrom(today);
     final isToday = days == 0;
     final color = hexColor(s.color);
@@ -301,7 +444,7 @@ class SpecialDaysPage extends ConsumerWidget {
   }
 
   /// 新增：先选日期，再填名称 / 颜色
-  Future<void> _add(BuildContext context, WidgetRef ref) async {
+  Future<void> _add() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
@@ -311,23 +454,26 @@ class SpecialDaysPage extends ConsumerWidget {
       helpText: '选择日期',
     );
     if (picked == null) return;
-    if (!context.mounted) return;
-    await showSpecialDayEditor(
-      context,
-      ref,
-      date: AppTime.dateOnly(picked),
-    );
+    if (!mounted) return;
+    await showSpecialDayEditor(context, ref, date: AppTime.dateOnly(picked));
   }
 
-  Widget _section(String s) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-    child: Text(
-      s,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: AppTheme.textSecondary,
-      ),
+  Widget _section(String s, {Widget? action}) => Padding(
+    padding: EdgeInsets.fromLTRB(16, 16, action == null ? 16 : 8, 4),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            s,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+        ),
+        ?action,
+      ],
     ),
   );
 
@@ -344,7 +490,8 @@ class SpecialDaysPage extends ConsumerWidget {
       padding: EdgeInsets.all(32),
       child: Text(
         '还没有特殊日子。\n\n点右下角「添加」，可以记生日、纪念日、考试倒计时等；\n'
-        '打开「每年重复」后，每年这一天都会自动出现在日历里并倒数。',
+        '打开「每年重复」后，每年这一天都会自动出现在日历里并倒数，\n'
+        '过了当天会自动滚到下一次；单次的日子过了会提示你归档。',
         textAlign: TextAlign.center,
         style: TextStyle(fontSize: 13, height: 1.7, color: AppTheme.textSecondary),
       ),

@@ -4,12 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/common.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/tag_dialogs.dart';
+import 'habit_detail_page.dart';
 import 'habit_edit_page.dart';
 import 'habit_models.dart';
+import 'habit_progress.dart';
 import 'habit_repository.dart';
 import 'habit_trash_page.dart';
 
 /// 习惯模块入口页：习惯列表 + 打卡。
+///
+/// 卡片上的「完成」以**当天目标**为准（`dayMet`）：
+/// 设定「每天累计 8 次」的习惯，打 1 次只算**部分完成**（进度 1/8），
+/// 满 8 次才算完成 —— 以前用 `isDone`（有记录就算完成）是错的。
 class HabitPage extends ConsumerStatefulWidget {
   const HabitPage({super.key});
 
@@ -131,10 +137,12 @@ class _HabitPageState extends ConsumerState<HabitPage> {
         h.persistence == HabitPersistence.cycles) {
       return false;
     }
-    bool met(String d) => cm.dayMet(d, h.dailyTarget, h.dailyTargetValue);
-    final doneDays = cm.entries.keys.where(met).length;
-    final doneTotal = cm.totalCount;
-    final (progress, _) = _persistenceProgress(h, cm, doneDays, doneTotal);
+    final (doneDays, doneTotal) = HabitProgress.doneCounts(h, cm);
+    final (progress, _) = HabitProgress.persistenceProgress(
+      h,
+      doneDays,
+      doneTotal,
+    );
     return progress >= 1.0;
   }
 
@@ -201,32 +209,6 @@ class _HabitPageState extends ConsumerState<HabitPage> {
     }
   }
 
-  /// 依据坚持周期计算进度 (0.0~1.0) 与展示文案。
-  /// [doneDays] 达标天数，[doneTotal] 达标次数（累计打卡数）。
-  (double, String) _persistenceProgress(
-    Habit h,
-    CheckinMap cm,
-    int doneDays,
-    int doneTotal,
-  ) {
-    final pv = h.persistenceValue;
-    switch (h.persistence) {
-      case HabitPersistence.unlimited:
-        return (0, '不限 · 已达标 $doneDays 天');
-      case HabitPersistence.days:
-        final p = pv <= 0 ? 0.0 : (doneDays / pv).clamp(0.0, 1.0);
-        return (p, '坚持 $doneDays/$pv 天');
-      case HabitPersistence.times:
-        final p = pv <= 0 ? 0.0 : (doneTotal / pv).clamp(0.0, 1.0);
-        return (p, '累计 $doneTotal/$pv 次');
-      case HabitPersistence.cycles:
-        // 每轮 pv 天，计算已完成的完整轮数 + 本轮进度
-        final p = pv <= 0 ? 0.0 : (doneDays % pv) / pv;
-        final rounds = pv <= 0 ? 0 : doneDays ~/ pv;
-        return (p, '第 ${rounds + 1} 轮 · 本轮 ${doneDays % pv}/$pv 天');
-    }
-  }
-
   /// 频率说明文案
   String _frequencyText(Habit h) {
     switch (h.frequency) {
@@ -249,22 +231,26 @@ class _HabitPageState extends ConsumerState<HabitPage> {
 
   Widget _card(BuildContext context, WidgetRef ref, Habit h, CheckinMap cm) {
     final today = AppTime.dateOnly(DateTime.now());
-    final doneToday = cm.isDone(today);
+    // 依据「当天目标」判断今天到底完成没有
+    // metToday 已不再用于列表（进度条移到详情页），保留计算会触发未使用告警
     final failedToday = cm.isFailed(today);
-    // 依据「当天目标」判断达标
+    final status = HabitProgress.dayStatus(h, cm, today, today: today);
+    final dailyColor = HabitProgress.colorOf(status);
+    final (dailyP, dailyText) = HabitProgress.dailyProgress(h, cm, today);
+    // 达标天数 / 累计次数 → 坚持周期进度
+    // （算法已搬到 HabitProgress，列表摘要与详情页进度条共用，不会两处算得不一样）
+    // 注意：met 在下面「连续 N 天」里还要用，保留这个局部判断
     bool met(String d) => cm.dayMet(d, h.dailyTarget, h.dailyTargetValue);
-    // 统计达标天数 / 达标次数
-    final doneDays = cm.entries.keys.where(met).length;
-    final doneTotal = cm.totalCount;
-    // 持久周期进度
-    final (progress, progressText) = _persistenceProgress(
+    final (doneDays, doneTotal) = HabitProgress.doneCounts(h, cm);
+    final (_, progressText) = HabitProgress.persistenceProgress(
       h,
-      cm,
       doneDays,
       doneTotal,
     );
     // 频率说明
     final freqText = _frequencyText(h);
+    final isWeeklyTimes = h.frequency == HabitFrequency.weeklyTimes;
+    final (weekCount, weekTarget) = HabitProgress.weeklyProgress(h, cm, today);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -285,12 +271,20 @@ class _HabitPageState extends ConsumerState<HabitPage> {
                       ),
                     ),
                   ),
-                  _checkinButton(context, ref, h, doneToday, failedToday),
+                  _checkinButton(context, ref, h, cm, today),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, size: 18),
                     tooltip: '更多操作',
                     onSelected: (v) => _menuAction(context, ref, h, v),
                     itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'detail',
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.grid_on_outlined),
+                          title: Text('热力图 / 详情'),
+                        ),
+                      ),
                       PopupMenuItem(
                         value: 'edit',
                         child: ListTile(
@@ -329,7 +323,7 @@ class _HabitPageState extends ConsumerState<HabitPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '$freqText · $progressText',
+                      freqText,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -388,19 +382,53 @@ class _HabitPageState extends ConsumerState<HabitPage> {
                       .toList(),
                 ),
               ],
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 6,
-                  backgroundColor: AppTheme.divider,
-                  color: failedToday
-                      ? AppTheme.danger
-                      : doneToday
-                      ? Colors.green
-                      : AppTheme.primary,
-                ),
+              const SizedBox(height: 6),
+              // 进度条与热力图都放在**详情页**（点这一行进去看），
+              // 列表这里只留一行摘要文字，避免整屏都是条形图与格子。
+              Row(
+                children: [
+                  Text(
+                    dailyText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: dailyColor,
+                    ),
+                  ),
+                  if (isWeeklyTimes) ...[
+                    const SizedBox(width: 10),
+                    Text(
+                      '本周 $weekCount/$weekTarget 次'
+                      '${weekCount >= weekTarget ? ' ✓' : ''}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: weekCount >= weekTarget
+                            ? dailyColor
+                            : AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  Text(
+                    progressText,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '详情与热力图',
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 18,
+                    icon: Icon(
+                      Icons.insights_outlined,
+                      color: failedToday
+                          ? AppTheme.danger
+                          : AppTheme.primary,
+                    ),
+                    onPressed: () => _openDetail(h),
+                  ),
+                ],
               ),
             ],
           ),
@@ -416,13 +444,22 @@ class _HabitPageState extends ConsumerState<HabitPage> {
     );
   }
 
+  void _openDetail(Habit h) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => HabitDetailPage(habitId: h.id)),
+    );
+  }
+
   Future<void> _menuAction(
     BuildContext context,
     WidgetRef ref,
     Habit h,
     String v,
   ) async {
-    if (v == 'edit') {
+    if (v == 'detail') {
+      _openDetail(h);
+    } else if (v == 'edit') {
       _editHabit(context, h);
     } else if (v == 'archive') {
       await ref.read(habitListProvider.notifier).archiveHabit(h.id);
@@ -432,7 +469,7 @@ class _HabitPageState extends ConsumerState<HabitPage> {
         builder: (ctx) => AlertDialog(
           title: const Text('删除习惯'),
           content: Text(
-            '将永久删除「${h.title.isEmpty ? '未命名习惯' : h.title}」及其全部打卡记录，无法恢复。确定吗？',
+            '将永久删除「${h.title.isEmpty ? '未命名习惯' : h.title}」及其全部打卡记录与修改记录，无法恢复。确定吗？',
           ),
           actions: [
             TextButton(
@@ -453,24 +490,33 @@ class _HabitPageState extends ConsumerState<HabitPage> {
     }
   }
 
+  /// 打卡按钮：区分「已完成 / 部分完成（3/8）/ 未完成 / 未打卡」
   Widget _checkinButton(
     BuildContext context,
     WidgetRef ref,
     Habit h,
-    bool doneToday,
-    bool failedToday,
+    CheckinMap cm,
+    String today,
   ) {
+    final met = cm.dayMet(today, h.dailyTarget, h.dailyTargetValue);
+    final failed = cm.isFailed(today);
+    final value = cm.dayValue(today);
+    final target = h.dailyTargetValue <= 0 ? 1 : h.dailyTargetValue;
     final IconData icon;
     final Color color;
     final String label;
-    if (doneToday) {
-      icon = Icons.check_circle;
-      color = Colors.green;
-      label = '已打卡';
-    } else if (failedToday) {
+    if (failed) {
       icon = Icons.cancel;
       color = AppTheme.danger;
-      label = '失败';
+      label = '未完成';
+    } else if (met) {
+      icon = Icons.check_circle;
+      color = const Color(0xFF30A46C);
+      label = '已完成';
+    } else if (value > 0 && h.dailyTarget != HabitDailyTarget.once) {
+      icon = Icons.incomplete_circle;
+      color = const Color(0xFFF5A623);
+      label = '打卡 $value/$target';
     } else {
       icon = Icons.radio_button_unchecked;
       color = AppTheme.primary;
@@ -521,13 +567,18 @@ class _HabitPageState extends ConsumerState<HabitPage> {
               ),
               ListTile(
                 leading: const Icon(Icons.cancel, color: AppTheme.danger),
-                title: const Text('标记失败'),
+                title: const Text('标记未完成'),
                 onTap: () => Navigator.pop(ctx, 'fail'),
               ),
               ListTile(
                 leading: const Icon(Icons.cleaning_services_outlined),
                 title: const Text('清除今日记录'),
                 onTap: () => Navigator.pop(ctx, 'clear'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.grid_on_outlined),
+                title: const Text('查看热力图 / 补打卡'),
+                onTap: () => Navigator.pop(ctx, 'detail'),
               ),
             ],
           ),
@@ -540,12 +591,19 @@ class _HabitPageState extends ConsumerState<HabitPage> {
         await notifier.failCheckin(h.id, today);
       } else if (act == 'clear') {
         await notifier.uncheckin(h.id, today);
+      } else if (act == 'detail') {
+        _openDetail(h);
       }
       return;
     }
 
     // 「定量 / 时长」目标：弹窗输入本次数值（数量 / 分钟）
     final unit = target == HabitDailyTarget.minutes ? '分钟' : '次 / 量';
+    final done = ref
+        .read(habitCheckinProvider)
+        .valueOrNull?[h.id]
+        ?.dayValue(today) ??
+        0;
     final inputCtrl = TextEditingController();
     final act = await showModalBottomSheet<String>(
       context: context,
@@ -571,7 +629,7 @@ class _HabitPageState extends ConsumerState<HabitPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                '当天目标：累计 $targetValue $unit',
+                '当天目标：累计 $targetValue $unit · 今天已打卡 $done',
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppTheme.textSecondary,
@@ -593,7 +651,14 @@ class _HabitPageState extends ConsumerState<HabitPage> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(ctx, 'fail'),
-                      child: const Text('标记失败'),
+                      child: const Text('标记未完成'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, 'detail'),
+                      child: const Text('热力图'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -616,6 +681,8 @@ class _HabitPageState extends ConsumerState<HabitPage> {
       await notifier.checkin(h.id, today, amount: amount <= 0 ? 1 : amount);
     } else if (act == 'fail') {
       await notifier.failCheckin(h.id, today);
+    } else if (act == 'detail') {
+      _openDetail(h);
     }
   }
 
