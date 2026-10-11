@@ -16,7 +16,11 @@
 ; ============================================================
 
 #define MyAppName "AllOne"
-#define MyAppVersion "1.2.3"
+; 版本号：CI 会用 /DMyAppVersion=x.y.z 覆盖（从 pubspec.yaml 读，见 .github/workflows/flutter-build.yml）；
+; 本地直接编译时才用下面这个默认值。发布前记得确认两处一致。
+#ifndef MyAppVersion
+  #define MyAppVersion "1.3.0"
+#endif
 #define MyAppPublisher "AllOne"
 #define MyAppExeName "allone.exe"
 #define MyAppId "{{8E9D1F2A-3B4C-5D6E-7F80-9A1B2C3D4E5F}}"
