@@ -12,6 +12,9 @@ import '../../core/storage/nav_providers.dart';
 import '../../core/theme.dart';
 import '../diary/diary_import_page.dart';
 import '../diary/diary_templates_page.dart';
+import '../schedule/course_edit_page.dart';
+import '../schedule/course_stats_page.dart';
+import '../schedule/term_manage_page.dart';
 import '../settings/settings_page.dart';
 import '../settings/text_exporter.dart';
 import '../todo/todo_templates_page.dart';
@@ -390,6 +393,56 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
                     context,
                     MaterialPageRoute(
                       builder: (_) => const TodoTemplatesPage(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _sectionLabel('课程表'),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(
+                    Icons.school_outlined,
+                    color: AppTheme.primary,
+                  ),
+                  title: const Text('学期管理'),
+                  subtitle: const Text('建学期（填起止日期）+ 编辑作息表（第几节几点）'),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const TermManagePage(),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.add_box_outlined,
+                    color: AppTheme.primary,
+                  ),
+                  title: const Text('添加课程'),
+                  subtitle: const Text('选星期、第几节、上哪些周就行，不用手填时间'),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CourseEditPage(),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.list_alt_outlined,
+                    color: AppTheme.primary,
+                  ),
+                  title: const Text('课程统计'),
+                  subtitle: const Text('查看全部课程与时段（点进去可修改）'),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CourseStatsPage(),
                     ),
                   ),
                 ),

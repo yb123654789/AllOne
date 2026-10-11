@@ -1,40 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/models/ui_prefs.dart';
-import '../../core/storage/app_paths.dart';
-import '../../core/storage/ui_prefs_providers.dart';
+import '../../core/models/common.dart';
 import '../../core/theme.dart';
 import 'course_edit_page.dart';
+import 'schedule_logic.dart';
 import 'schedule_models.dart';
 import 'schedule_repository.dart';
+
+/// 周网格的尺寸参数
+const double kAxisWidth = 44; // 左侧节次时间轴宽度
+const double kRowHeight = 56; // 每节课的行高
+const double kColGap = 2; // 列间距
 
 /// 星期名（周一起始）
 const _weekNames = ['一', '二', '三', '四', '五', '六', '日'];
 
-/// 周视图 7 列网格的列宽（纯函数，便于单元测试）。
+/// 课程表入口页：**只做周网格**（照课表截图那种「节次轴 + 色块」排版）。
 ///
-/// 关键约束：**7 列 + 列间距 + 左右留白 不会超过可用宽度**，
-/// 这样内容才与窗口对齐（旧实现是 7 × 固定 150px，比窗口宽就得左右平移）。
-/// 超过 [maxCol] 时不再拉宽（超宽屏上避免一列被拉成一条）。
-double scheduleColumnWidth(
-  double maxWidth, {
-  int columns = 7,
-  double gap = 6,
-  double horizontalPadding = 8,
-  double minCol = 60,
-  double maxCol = 360,
-}) {
-  final available =
-      maxWidth - horizontalPadding * 2 - gap * (columns - 1);
-  if (available <= 0) return minCol;
-  final w = available / columns;
-  if (w < minCol) return minCol;
-  if (w > maxCol) return maxCol;
-  return w;
-}
-
-/// 课程表模块入口页：周视图 + 课程统计（学期制，半年一换）。
+/// 设计变化（2026-10-11）：
+/// - 引入**节次**：左侧是节次与时间轴，课程按节次占行（连堂占多行），空间不再局促；
+/// - **删掉「按天」排布**：看"今天上什么课"的场景移到「日历 → 当天」的日程表；
+/// - **铺满屏幕**：7 列平分可用宽度，手机上也不需要左右平移；
+/// - 「课程统计 / 学期管理 / 添加课程」的入口移到**工具页**（这里保持干净）。
 class SchedulePage extends ConsumerStatefulWidget {
   const SchedulePage({super.key});
 
@@ -42,556 +30,350 @@ class SchedulePage extends ConsumerStatefulWidget {
   ConsumerState<SchedulePage> createState() => _SchedulePageState();
 }
 
-class _SchedulePageState extends ConsumerState<SchedulePage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab;
-
-  @override
-  void initState() {
-    super.initState();
-    _tab = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
-  }
-
-  Future<void> _addCourse() async {
-    final terms = ref.read(termListProvider).valueOrNull ?? [];
-    if (terms.isEmpty) {
-      await _manageTerms();
-      return;
-    }
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const CourseEditPage()),
-    );
-  }
-
-  Future<void> _manageTerms() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const TermManagePage()),
-    );
-  }
+class _SchedulePageState extends ConsumerState<SchedulePage> {
+  /// 用户手动翻到的周（null = 跟随「当前周」）
+  int? _weekNo;
 
   @override
   Widget build(BuildContext context) {
+    final term = ref.watch(currentTermProvider);
+    final courses =
+        ref.watch(courseListProvider).valueOrNull ?? const <Course>[];
+    final sections =
+        ref.watch(sectionListProvider).valueOrNull ?? kDefaultSections;
+
+    if (term == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('课程表')),
+        body: _guide(
+          '还没有学期。\n\n课程表按「学期」组织（半年一换）：'
+          '先去「工具 → 课程表 · 学期管理」建一个学期并填上起止日期，'
+          '这里就会自动算出当前是第几周。',
+        ),
+      );
+    }
+
+    final today = DateTime.now();
+    final currentWeek = ScheduleLogic.weekNoOf(term, today);
+    final total = ScheduleLogic.totalWeeks(term);
+    final weekNo = (_weekNo ?? (currentWeek > 0 ? currentWeek : 1)).clamp(
+      1,
+      total > 0 ? total : 1,
+    );
+    final monday = ScheduleLogic.mondayOfWeek(term, weekNo) ?? today;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('课程表'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_view_month_outlined),
-            tooltip: '学期管理',
-            onPressed: _manageTerms,
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: '添加课程',
-            onPressed: _addCourse,
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tab,
-          tabs: const [
-            Tab(text: '周视图'),
-            Tab(text: '课程统计'),
-          ],
+        title: Text(
+          term.name.isEmpty ? '课程表' : term.name,
+          style: const TextStyle(fontSize: 17),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(46),
+          child: _weekBar(weekNo, total, currentWeek, monday),
         ),
       ),
-      body: TabBarView(
-        controller: _tab,
-        children: const [_WeekView(), _CourseStatsView()],
+      body: courses.isEmpty
+          ? _guide(
+              '这个学期还没有课程。\n\n去「工具 → 课程表 · 添加课程」添加：'
+              '选好星期、第几节、上哪些周就行，不用手填时间。',
+            )
+          : _grid(courses, sections, monday, weekNo),
+    );
+  }
+
+  Widget _guide(String text) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontSize: 13,
+          height: 1.8,
+          color: AppTheme.textSecondary,
+        ),
       ),
-    );
-  }
-}
+    ),
+  );
 
-/// 周视图的两种排布
-enum ScheduleLayout {
-  /// 7 列周网格（传统课程表）
-  grid,
-
-  /// 一天一段的纵向列表（手机友好，无需左右平移）
-  list,
-}
-
-/// 周视图（两种排布可手动切换并记住，默认按窗口宽度自动选）
-class _WeekView extends ConsumerWidget {
-  const _WeekView();
-
-  /// 窄于这个宽度（手机竖屏）自动改用「一天一段」：
-  /// 7 列平分后每列只剩 50px 左右，字全被挤没。
-  static const double _gridMinWidth = 560;
-
-  /// 宽屏（电脑）时列宽上限，避免超宽屏把一张课卡拉成一条
-  static const double _maxColWidth = 360;
-
-  /// 用户手动选择的排布；null = 自动（随窗口宽度）。
-  /// 选择会写进 `AllOneData/settings/ui.json`，重启后仍然记得。
-  static ScheduleLayout? _overrideOf(String pref) => switch (pref) {
-    UiPrefs.scheduleLayoutGrid => ScheduleLayout.grid,
-    UiPrefs.scheduleLayoutList => ScheduleLayout.list,
-    _ => null,
-  };
-
-  static Future<void> _saveLayout(WidgetRef ref, ScheduleLayout? mode) {
-    return ref
-        .read(uiPrefsProvider.notifier)
-        .setScheduleLayout(mode?.name ?? UiPrefs.scheduleLayoutAuto);
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final courses = ref.watch(courseListProvider).valueOrNull ?? [];
-    final today = DateTime.now().weekday;
-    final override = _overrideOf(ref.watch(scheduleLayoutPrefProvider));
-    return LayoutBuilder(
-      builder: (context, c) {
-        // 以前这里是一个横向 ListView（7 列 × 固定 150px ≈ 1050px）：
-        // 窗口比它宽时右侧留白「对不齐」，比它窄（手机）时只能左右平移，
-        // 每列内部还各有一个纵向 ListView，于是又得上下翻 —— 双重滚动。
-        // 现在两种排布都保留：宽屏平分列宽铺满窗口，窄屏按天竖排；
-        // 用户也可以随时手动切换（切换后按用户所选并记住，不再自动跟随）。
-        final auto = c.maxWidth < _gridMinWidth
-            ? ScheduleLayout.list
-            : ScheduleLayout.grid;
-        final mode = override ?? auto;
-        return Column(
-          children: [
-            _layoutBar(ref, mode, override != null),
-            Expanded(
-              child: mode == ScheduleLayout.grid
-                  ? _weekGrid(courses, today, c.maxWidth)
-                  : _dayList(courses, today),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// 顶部切换条：网格 / 按天；手动选过之后出现「恢复自动」
-  Widget _layoutBar(WidgetRef ref, ScheduleLayout mode, bool manual) {
+  /// 顶部：第几周 + 翻周 + 本周日期范围
+  Widget _weekBar(int weekNo, int total, int currentWeek, DateTime monday) {
+    final sunday = monday.add(const Duration(days: 6));
+    String md(DateTime d) =>
+        AppTime.dateOnly(d).substring(5).replaceAll('-', '/');
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          if (manual)
-            TextButton.icon(
-              icon: const Icon(Icons.restart_alt, size: 18),
-              label: const Text('恢复自动'),
-              onPressed: () => _saveLayout(ref, null),
-            ),
-          Tooltip(
-            message: manual
-                ? '已手动选择（会记住），可点「恢复自动」'
-                : '当前按窗口宽度自动选择（宽屏网格 / 窄屏按天）',
-            child: SegmentedButton<ScheduleLayout>(
-              showSelectedIcon: false,
-              style: const ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              segments: const [
-                ButtonSegment(
-                  value: ScheduleLayout.grid,
-                  icon: Icon(Icons.grid_view_outlined, size: 16),
-                  label: Text('网格'),
+          IconButton(
+            tooltip: '上一周',
+            icon: const Icon(Icons.chevron_left),
+            onPressed: weekNo <= 1
+                ? null
+                : () => setState(() => _weekNo = weekNo - 1),
+          ),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  weekNo == currentWeek ? '第 $weekNo 周 · 本周' : '第 $weekNo 周',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-                ButtonSegment(
-                  value: ScheduleLayout.list,
-                  icon: Icon(Icons.view_agenda_outlined, size: 16),
-                  label: Text('按天'),
+                Text(
+                  '${md(monday)} ~ ${md(sunday)}'
+                  '${total > 0 ? ' · 共 $total 周' : ''}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
               ],
-              selected: {mode},
-              onSelectionChanged: (s) => _saveLayout(ref, s.first),
             ),
+          ),
+          if (weekNo != currentWeek && currentWeek > 0)
+            TextButton(
+              onPressed: () => setState(() => _weekNo = null),
+              child: const Text('回到本周'),
+            ),
+          IconButton(
+            tooltip: '下一周',
+            icon: const Icon(Icons.chevron_right),
+            onPressed: (total > 0 && weekNo >= total)
+                ? null
+                : () => setState(() => _weekNo = weekNo + 1),
           ),
         ],
       ),
     );
   }
 
-  /// 7 列周网格。列宽 = 可用宽度平分，**内容与窗口对齐**；
-  /// 只有在用户手动选「网格」而窗口又太窄时，才退化为横向平移
-  /// （此时也不再需要上下分别滚动：整块只有一个纵向滚动）。
-  Widget _weekGrid(List<Course> courses, int today, double maxWidth) {
-    const gap = 6.0;
-    const padding = 8.0;
-    final colWidth = scheduleColumnWidth(
-      maxWidth,
-      gap: gap,
-      maxCol: _maxColWidth,
-    );
-    final gridWidth = colWidth * 7 + gap * 6;
-    final grid = IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var w = 1; w <= 7; w++) ...[
-            if (w > 1) const SizedBox(width: gap),
-            SizedBox(
-              width: colWidth,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: w == today
-                      ? AppTheme.primary.withValues(alpha: 0.06)
-                      : AppTheme.surface,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  children: [
-                    _dayHeader(w, w == today),
-                    const SizedBox(height: 6),
-                    ..._cellsOf(courses, w),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-    final fits = gridWidth <= maxWidth - padding * 2;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(padding),
-      child: fits
-          ? Center(child: SizedBox(width: gridWidth, child: grid))
-          : SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(width: gridWidth, child: grid),
-            ),
-    );
-  }
-
-  /// 一天一段，纵向排列 —— 左右不再需要平移，整页只需上下滚动。
-  /// 窄屏自动用它，宽屏也可以手动切到它（课多的日子看得更清楚）。
-  Widget _dayList(List<Course> courses, int today) {
-    return ListView(
-      padding: const EdgeInsets.all(8),
+  Widget _grid(
+    List<Course> courses,
+    List<SectionTime> sections,
+    DateTime monday,
+    int weekNo,
+  ) {
+    return Column(
       children: [
-        for (var w = 1; w <= 7; w++) ...[
-          _dayHeader(w, w == today),
-          const SizedBox(height: 6),
-          ..._cellsOf(courses, w),
-          const SizedBox(height: 14),
-        ],
+        _headerRow(monday),
+        Expanded(
+          child: SingleChildScrollView(
+            child: LayoutBuilder(
+              builder: (ctx, c) {
+                final colW = ScheduleLogic.columnWidth(c.maxWidth);
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _axis(sections),
+                    for (var i = 0; i < 7; i++) ...[
+                      if (i > 0) const SizedBox(width: kColGap),
+                      SizedBox(
+                        width: colW,
+                        child: _dayColumn(
+                          courses,
+                          sections,
+                          monday.add(Duration(days: i)),
+                          weekNo,
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
       ],
     );
   }
 
-  /// 某一天的所有课程卡片；没有课时给一句提示（保持 7 天结构，方便定位）
-  List<Widget> _cellsOf(List<Course> courses, int w) {
-    final day = courses.where((c) => c.weekday == w).toList()
-      ..sort((a, b) => a.startTime.compareTo(b.startTime));
-    if (day.isEmpty) {
-      return [
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 10),
-          child: Text(
-            '没有课',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
-          ),
-        ),
-      ];
-    }
-    return [for (final c in day) _courseCell(c)];
-  }
-
-  Widget _dayHeader(int w, bool isToday) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: isToday ? AppTheme.primary : Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: isToday ? null : Border.all(color: AppTheme.divider),
-      ),
-      child: Text(
-        '周${_weekNames[w - 1]}${isToday ? ' · 今天' : ''}',
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: isToday ? Colors.white : AppTheme.textPrimary,
-          fontWeight: FontWeight.w600,
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
-
-  Widget _courseCell(Course c) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  /// 日期行：周几 + 日期数字（今天用实心圆标出）
+  Widget _headerRow(DateTime monday) {
+    final today = AppTime.dateOnly(DateTime.now());
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
         children: [
-          Text(
-            c.name.isEmpty ? '（未命名）' : c.name,
-            // 窄列 / 长课名不再撑破布局，直接省略号
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '${c.startTime}-${c.endTime}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, color: AppTheme.primary),
-          ),
-          if (c.classroom.isNotEmpty)
-            Text(
-              c.classroom,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppTheme.textSecondary,
+          const SizedBox(width: kAxisWidth),
+          for (var i = 0; i < 7; i++)
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(left: i == 0 ? 0 : kColGap),
+                child: _dayHeader(
+                  monday.add(Duration(days: i)),
+                  AppTime.dateOnly(monday.add(Duration(days: i))) == today,
+                ),
               ),
             ),
         ],
       ),
     );
   }
-}
 
-/// 课程统计视图
-class _CourseStatsView extends ConsumerWidget {
-  const _CourseStatsView();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final courses = ref.watch(courseListProvider).valueOrNull ?? [];
-    if (courses.isEmpty) {
-      return const Center(
-        child: Text(
-          '暂无课程，点击右上角 + 添加',
-          style: TextStyle(color: AppTheme.textSecondary),
+  Widget _dayHeader(DateTime date, bool isToday) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _weekNames[date.weekday - 1],
+          style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
         ),
-      );
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: courses.length,
-      itemBuilder: (ctx, i) {
-        final c = courses[i];
-        return Card(
-          child: ExpansionTile(
-            leading: const CircleAvatar(
-              backgroundColor: AppTheme.primary,
-              radius: 16,
-              child: Icon(Icons.school, color: Colors.white, size: 18),
+        const SizedBox(height: 2),
+        Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isToday ? AppTheme.primary : Colors.transparent,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            '${date.day}',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
+              color: isToday ? Colors.white : AppTheme.textPrimary,
             ),
-            title: Text(
-              c.name.isEmpty ? '（未命名课程）' : c.name,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text(
-              '周${_weekNames[c.weekday - 1]} ${c.startTime}-${c.endTime}',
-              style: const TextStyle(fontSize: 12),
-            ),
-            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            children: [
-              _row('教师', c.teacher),
-              _row('地点', c.classroom),
-              _row('周次', c.weeks.isEmpty ? '每周' : c.weeks.join(', ')),
-              if (c.notes.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '课程说明：${c.notes}',
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 左侧节次时间轴：第几节 + 起止时间
+  Widget _axis(List<SectionTime> sections) {
+    return SizedBox(
+      width: kAxisWidth,
+      child: Column(
+        children: [
+          for (final s in sections)
+            Container(
+              height: kRowHeight,
+              alignment: Alignment.topCenter,
+              padding: const EdgeInsets.only(top: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${s.index}',
                     style: const TextStyle(
                       fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    s.start,
+                    style: const TextStyle(
+                      fontSize: 9.5,
                       color: AppTheme.textSecondary,
                     ),
                   ),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _row(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 60,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppTheme.textSecondary,
+                  Text(
+                    s.end,
+                    style: const TextStyle(
+                      fontSize: 9.5,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          Expanded(
-            child: Text(
-              value.isEmpty ? '—' : value,
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
         ],
       ),
     );
   }
-}
 
-/// 学期管理页
-class TermManagePage extends ConsumerWidget {
-  const TermManagePage({super.key});
-
-  Future<void> _createTerm(BuildContext context, WidgetRef ref) async {
-    final nameCtrl = TextEditingController();
-    DateTime? start;
-    DateTime? end;
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('新建学期（半年一换）'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+  /// 一天的列：背景行 + 课程块（连堂占多行）
+  Widget _dayColumn(
+    List<Course> courses,
+    List<SectionTime> sections,
+    DateTime date,
+    int weekNo,
+  ) {
+    final slots = ScheduleLogic.slotsOf(
+      courses,
+      sections,
+      weekday: date.weekday,
+      weekNo: weekNo,
+    );
+    final maxIndex = sections.isEmpty ? 0 : sections.last.index;
+    return SizedBox(
+      height: sections.length * kRowHeight,
+      child: Stack(
+        children: [
+          Column(
             children: [
-              TextField(
-                controller: nameCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: '学期名称（如：2026 秋季学期）',
+              for (var i = 0; i < sections.length; i++)
+                Container(
+                  height: kRowHeight,
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: AppTheme.divider),
+                    ),
+                  ),
                 ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('开始日期'),
-                subtitle: Text(
-                  start == null
-                      ? '未设置'
-                      : '${start!.year}-${start!.month}-${start!.day}',
-                ),
-                onTap: () async {
-                  final d = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
-                  );
-                  if (d != null) setState(() => start = d);
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('结束日期'),
-                subtitle: Text(
-                  end == null
-                      ? '未设置'
-                      : '${end!.year}-${end!.month}-${end!.day}',
-                ),
-                onTap: () async {
-                  final d = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
-                  );
-                  if (d != null) setState(() => end = d);
-                },
-              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消'),
+          for (final s in slots)
+            Positioned(
+              top: (s.startSection - 1).clamp(0, maxIndex) * kRowHeight + 2,
+              height: s.span.clamp(1, sections.length) * kRowHeight - 4,
+              left: 0,
+              right: 0,
+              child: _block(s),
             ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('创建'),
-            ),
-          ],
-        ),
+        ],
       ),
     );
-    if (saved == true) {
-      await ref
-          .read(termListProvider.notifier)
-          .saveTerm(
-            Term(
-              id: AppPaths.newId(),
-              name: nameCtrl.text.trim(),
-              start: start == null
-                  ? ''
-                  : '${start!.year}-${start!.month}-${start!.day}',
-              end: end == null ? '' : '${end!.year}-${end!.month}-${end!.day}',
-            ),
-          );
-    }
   }
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final terms = ref.watch(termListProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('学期管理')),
-      body: terms.when(
-        data: (list) => list.isEmpty
-            ? const Center(
-                child: Text(
-                  '暂无学期，点击右下角 + 创建',
-                  style: TextStyle(color: AppTheme.textSecondary),
-                ),
-              )
-            : ListView.builder(
-                itemCount: list.length,
-                itemBuilder: (ctx, i) {
-                  final t = list[i];
-                  return Card(
-                    child: ListTile(
-                      leading: const Icon(
-                        Icons.date_range,
-                        color: AppTheme.primary,
-                      ),
-                      title: Text(t.name.isEmpty ? '未命名学期' : t.name),
-                      subtitle: Text('${t.start} ~ ${t.end}'),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => ref
-                            .read(termListProvider.notifier)
-                            .deleteTerm(t.id),
-                      ),
-                    ),
-                  );
-                },
-              ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('加载失败：$e')),
+  Widget _block(CourseSlot slot) {
+    final bg = ScheduleLogic.colorOf(slot.course);
+    final fg = ScheduleLogic.textColorOf(bg);
+    final room = slot.session.classroom;
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => CourseEditPage(course: slot.course)),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _createTerm(context, ref),
-        tooltip: '新建学期',
-        child: const Icon(Icons.add),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(5, 4, 4, 4),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              slot.course.name.isEmpty ? '（未命名）' : slot.course.name,
+              maxLines: slot.span > 1 ? 4 : 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.25,
+                fontWeight: FontWeight.w600,
+                color: fg,
+              ),
+            ),
+            if (room.isNotEmpty && slot.span > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  room,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 10, color: fg, height: 1.2),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
