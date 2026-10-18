@@ -29,6 +29,18 @@ class _HabitDetailPageState extends ConsumerState<HabitDetailPage> {
 
   static const _weeksInYear = 53;
 
+  /// 热力图实际铺多少周：**从习惯创建那一周算起**（最多一年）。
+  ///
+  /// 之前固定铺满 53 周：习惯刚建几周时，左边几十周全是「习惯还不存在」的
+  /// 灰格子，手机一屏几乎看不到一个彩色格 —— 观感就是「热力图没有颜色」。
+  int _weeksFor(Habit h) {
+    final c = DateTime(h.createdAt.year, h.createdAt.month, h.createdAt.day);
+    final n = DateTime.now();
+    final days = DateTime(n.year, n.month, n.day).difference(c).inDays;
+    if (days < 0) return 1;
+    return ((days ~/ 7) + 1).clamp(1, _weeksInYear);
+  }
+
   @override
   Widget build(BuildContext context) {
     final habits = ref.watch(habitListProvider).valueOrNull;
@@ -51,6 +63,7 @@ class _HabitDetailPageState extends ConsumerState<HabitDetailPage> {
     final h = habit;
     final cm = checkins[h.id] ?? const CheckinMap();
     final today = AppTime.dateOnly(DateTime.now());
+    final weeks = _weeksFor(h);
     // 近一年（含今天）
     final start = AppTime.dateOnly(
       DateTime.now().subtract(const Duration(days: 364)),
@@ -91,7 +104,7 @@ class _HabitDetailPageState extends ConsumerState<HabitDetailPage> {
           Row(
             children: [
               const Text(
-                '打卡热力图（近一年）',
+                '打卡热力图（创建至今 · 最多一年）',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
               const Spacer(),
@@ -110,16 +123,16 @@ class _HabitDetailPageState extends ConsumerState<HabitDetailPage> {
               h,
               cm,
               today: today,
-              weeks: _weeksInYear,
+              weeks: weeks,
             ),
-            weeks: _weeksInYear,
+            weeks: weeks,
             anchorDate: today,
             cellSize: 20,
             gap: 3,
             selected: _selected,
             scrollable: true,
             showWeekdayLabels: true,
-            weekHeaders: _weekHeaders(h, cm, today),
+            weekHeaders: _weekHeaders(h, cm, today, weeks),
             onTapDay: (d) => _toggle(d, today),
           ),
           const SizedBox(height: 10),
@@ -351,7 +364,12 @@ class _HabitDetailPageState extends ConsumerState<HabitDetailPage> {
   // ── 热力图数据 ──────────────────────────────────────────────────────────
 
   /// 周行头：仅「每周 N 次」需要（其它频率没有周目标）
-  Map<String, String> _weekHeaders(Habit h, CheckinMap cm, String today) {
+  Map<String, String> _weekHeaders(
+    Habit h,
+    CheckinMap cm,
+    String today,
+    int weeks,
+  ) {
     if (h.frequency != HabitFrequency.weeklyTimes) return const {};
     final target = h.weeklyTimes <= 0 ? 1 : h.weeklyTimes;
     final anchor = DateTime.tryParse(today) ?? DateTime.now();
@@ -361,7 +379,7 @@ class _HabitDetailPageState extends ConsumerState<HabitDetailPage> {
       anchor.day,
     ).subtract(Duration(days: anchor.weekday - 1));
     final out = <String, String>{};
-    for (var i = 0; i < _weeksInYear; i++) {
+    for (var i = 0; i < weeks; i++) {
       final ws = AppTime.dateOnly(
         lastMonday.subtract(Duration(days: 7 * i)),
       );

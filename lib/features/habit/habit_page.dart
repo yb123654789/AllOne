@@ -383,8 +383,23 @@ class _HabitPageState extends ConsumerState<HabitPage> {
                 ),
               ],
               const SizedBox(height: 6),
+              // 近 7 天状态条：一眼看出这几天断没断（完整热力图仍在详情页）
+              Row(
+                children: [
+                  const Text(
+                    '近 7 天',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  _recentStrip(h, cm, today),
+                ],
+              ),
+              const SizedBox(height: 6),
               // 进度条与热力图都放在**详情页**（点这一行进去看），
-              // 列表这里只留一行摘要文字，避免整屏都是条形图与格子。
+              // 列表这里只留一行摘要文字 + 近 7 天状态条，避免整屏都是条形图与格子。
               Row(
                 children: [
                   Text(
@@ -432,6 +447,46 @@ class _HabitPageState extends ConsumerState<HabitPage> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// 近 7 天状态条：从「6 天前」排到「今天」（今天在最右，带一圈细边框）
+  Widget _recentStrip(Habit h, CheckinMap cm, String today) {
+    final anchor = DateTime.tryParse(today) ?? DateTime.now();
+    final cells = <Widget>[];
+    for (var i = 6; i >= 0; i--) {
+      final day = anchor.subtract(Duration(days: i));
+      cells.add(_recentCell(h, cm, today, day, i == 0));
+    }
+    return Row(mainAxisSize: MainAxisSize.min, children: cells);
+  }
+
+  Widget _recentCell(
+    Habit h,
+    CheckinMap cm,
+    String today,
+    DateTime day,
+    bool isToday,
+  ) {
+    final key = AppTime.dateOnly(day);
+    final status = HabitProgress.dayStatus(h, cm, key, today: today);
+    final color = HabitProgress.colorOf(status);
+    return Tooltip(
+      message: '$key ${HabitProgress.labelOf(status)}',
+      waitDuration: const Duration(milliseconds: 400),
+      child: Container(
+        key: ValueKey('recent-$key'),
+        width: 13,
+        height: 13,
+        margin: const EdgeInsets.only(right: 4),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(3),
+          border: isToday
+              ? Border.all(color: AppTheme.textSecondary, width: 1)
+              : null,
         ),
       ),
     );

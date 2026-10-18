@@ -1,25 +1,40 @@
+﻿import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../core/models/common.dart';
 import '../../core/storage/app_paths.dart';
+import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
+import '../../core/utils/media_utils.dart';
+import '../../core/widgets/attachment_view.dart';
 import 'quest_models.dart';
 import 'quest_repository.dart';
 
 /// 新建 / 编辑任务的基础字段。
 ///
 /// 里程碑、行动项、投入记录都在**详情页**里管，这里只管「这个任务是什么」。
+/// 附件也在这里：拆不出文字说明的时候，贴一张参考图 / 录一段语音最省事，
+/// 子项目同样支持。
 class QuestEditPage extends ConsumerStatefulWidget {
   final Quest? quest;
 
-  const QuestEditPage({super.key, this.quest});
+  /// 新建子项目时传入父任务 id（新建后挂在它下面）
+  final String? parentId;
+
+  const QuestEditPage({super.key, this.quest, this.parentId});
 
   @override
   ConsumerState<QuestEditPage> createState() => _QuestEditPageState();
 }
 
 class _QuestEditPageState extends ConsumerState<QuestEditPage> {
+  /// 大文件阈值：超过则转外链引用（与日记 / 待办一致）
+  static const int largeFileThreshold = 50 * 1024 * 1024;
+
+  late final String _questId;
   late final TextEditingController _titleCtrl;
   late final TextEditingController _visionCtrl;
   late final TextEditingController _categoryCtrl;
@@ -29,6 +44,8 @@ class _QuestEditPageState extends ConsumerState<QuestEditPage> {
   late String _time;
   late int _manualProgress;
   late bool _pinned;
+  final List<MediaAttachment> _media = [];
+  bool _recording = false;
 
   bool get _isNew => widget.quest == null;
 
@@ -36,6 +53,8 @@ class _QuestEditPageState extends ConsumerState<QuestEditPage> {
   void initState() {
     super.initState();
     final q = widget.quest;
+    // 先定好 id：附件要在「保存前」就能落盘到 quest/quests/<id>/media/
+    _questId = q?.id ?? AppPaths.newId();
     _titleCtrl = TextEditingController(text: q?.title ?? '');
     _visionCtrl = TextEditingController(text: q?.vision ?? '');
     _categoryCtrl = TextEditingController(text: q?.category ?? '未分类');
@@ -45,6 +64,7 @@ class _QuestEditPageState extends ConsumerState<QuestEditPage> {
     _time = q?.time ?? '';
     _manualProgress = q?.manualProgress ?? 0;
     _pinned = q?.pinned ?? false;
+    _media.addAll(q?.media ?? const <MediaAttachment>[]);
   }
 
   @override
@@ -85,12 +105,15 @@ class _QuestEditPageState extends ConsumerState<QuestEditPage> {
             controller: _visionCtrl,
             maxLines: 4,
             decoration: const InputDecoration(
-              labelText: '目标 / 愿景（为什么做、想达成什么）',
-              hintText: '长期任务最怕忘了当初为什么开始，这里写清楚',
+              labelText: '描述 / 目标（想做成什么样、为什么做）',
+              hintText: '长期任务最怕忘了当初为什么开始，这里写清楚；'
+                  '也可以只写一句「这一步要交付什么」',
               border: OutlineInputBorder(),
               alignLabelWithHint: true,
             ),
           ),
+          const SizedBox(height: 18),
+          _attachmentsSection(),
           const SizedBox(height: 18),
           _label('领域分类'),
           const SizedBox(height: 6),
@@ -268,6 +291,181 @@ class _QuestEditPageState extends ConsumerState<QuestEditPage> {
     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
   );
 
+  // ── 附件（照片 / 录音 / 视频 / 文件） ─────────────────────────────────────
+
+  /// 添加附件后的即时反馈（与日记 / 待办 / 笔记一致）
+  void _toastAdded(MediaType type) {
+    if (!mounted) return;
+    showAttachmentAddedToast(context, type, _media.length);
+  }
+
+  Widget _attachmentsSection() {
+    final root = ref.read(jsonStoreProvider).valueOrNull?.root.path;
+    final mediaDir = root == null ? null : p.join(root, questMediaDir(_questId));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label('附件（照片 / 录音 / 视频 / 文件）'),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            _attachBtn(
+              Icons.photo_outlined,
+              '照片',
+              () => _addMedia(MediaType.photo),
+            ),
+            _attachBtn(
+              _recording ? Icons.stop_circle_outlined : Icons.mic_none,
+              _recording ? '停止' : '录音',
+              _toggleRecord,
+            ),
+            _attachBtn(
+              Icons.videocam_outlined,
+              '视频',
+              () => _addMedia(MediaType.video),
+            ),
+            _attachBtn(
+              Icons.attach_file,
+              '文件',
+              () => _addMedia(MediaType.file),
+            ),
+          ],
+        ),
+        if (_media.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              '还没有附件；参考图、截图、语音备忘都可以放这里',
+              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            ),
+          )
+        else
+          MediaThumbStrip(
+            media: _media,
+            mediaDir: mediaDir,
+            padding: EdgeInsets.zero,
+            onRemove: (m) => setState(() => _media.remove(m)),
+          ),
+      ],
+    );
+  }
+
+  Widget _attachBtn(IconData icon, String label, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: AppTheme.primary, size: 22),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addMedia(MediaType type) async {
+    final File? picked;
+    switch (type) {
+      case MediaType.photo:
+        picked = await MediaUtils.pickImage();
+      case MediaType.audio:
+      case MediaType.video:
+      case MediaType.file:
+        picked = await MediaUtils.pickAnyFile();
+      case MediaType.videoLink:
+        picked = null;
+    }
+    if (picked == null) return;
+    final size = await picked.length();
+    // 大文件：不复制进数据目录，只记外部路径引用（与日记一致）
+    if (size > largeFileThreshold) {
+      if (!mounted) return;
+      setState(() {
+        _media.add(
+          MediaAttachment(
+            type: type,
+            external: picked!.path,
+            size: size,
+            note: '大文件外链',
+          ),
+        );
+      });
+      _toastAdded(type);
+      return;
+    }
+    final store = await ref.read(jsonStoreProvider.future);
+    final dir = Directory(p.join(store.root.path, questMediaDir(_questId)));
+    final name = await MediaUtils.copyToDir(picked, dir);
+    if (name != null && mounted) {
+      setState(() {
+        _media.add(MediaAttachment(type: type, file: name, size: size));
+      });
+      _toastAdded(type);
+    }
+  }
+
+  Future<void> _toggleRecord() async {
+    if (_recording) {
+      final path = await MediaUtils.stopRecording();
+      _recording = false;
+      if (path != null) {
+        final f = File(path);
+        if (await f.exists()) {
+          final size = await f.length();
+          final store = await ref.read(jsonStoreProvider.future);
+          final dir = Directory(p.join(store.root.path, questMediaDir(_questId)));
+          final name = await MediaUtils.copyToDir(f, dir);
+          if (name != null && mounted) {
+            setState(() {
+              _media.add(
+                MediaAttachment(type: MediaType.audio, file: name, size: size),
+              );
+            });
+            _toastAdded(MediaType.audio);
+          }
+        }
+      }
+      if (mounted) setState(() {});
+      return;
+    }
+    if (!await MediaUtils.requestMicPermission()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('需要麦克风权限才能录音')),
+        );
+      }
+      return;
+    }
+    final store = await ref.read(jsonStoreProvider.future);
+    final dir = Directory(p.join(store.root.path, questMediaDir(_questId)));
+    if (!await dir.exists()) await dir.create(recursive: true);
+    final path = p.join(
+      dir.path,
+      '${DateTime.now().millisecondsSinceEpoch}_rec.m4a',
+    );
+    final started = await MediaUtils.startRecording(path);
+    _recording = started;
+    if (!started && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('录音启动失败，请检查麦克风权限')),
+      );
+    }
+    if (mounted) setState(() {});
+  }
+
   String _statusLabel(QuestStatus s) {
     switch (s) {
       case QuestStatus.active:
@@ -308,10 +506,35 @@ class _QuestEditPageState extends ConsumerState<QuestEditPage> {
     }
     final now = DateTime.now();
     final notifier = ref.read(questListProvider.notifier);
+    // 完成约束：编辑页也不能绕过「子项目全部了结才能完成」。
+    // 之前这里直接 mutate 写库，能把还有未了结子项目的任务强行标成已完成，
+    // 与列表菜单 / 详情菜单的规则不一致。
+    if (!_isNew &&
+        _status == QuestStatus.done &&
+        widget.quest!.status != QuestStatus.done) {
+      final all = ref.read(questListProvider).valueOrNull ?? const <Quest>[];
+      final blockers = QuestLogic.blockersForDone(all, widget.quest!.id);
+      if (blockers.isNotEmpty) {
+        final names = blockers
+            .take(3)
+            .map((b) => '「${b.title.isEmpty ? '未命名' : b.title}」')
+            .join('、');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '还有 ${blockers.length} 个子项目没了结（$names'
+              '${blockers.length > 3 ? ' 等' : ''}），要先把它们设为已完成或已放弃',
+            ),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+        return;
+      }
+    }
     if (_isNew) {
       await notifier.save(
         Quest(
-          id: AppPaths.newId(),
+          id: _questId,
           title: title,
           vision: _visionCtrl.text.trim(),
           category: _categoryCtrl.text.trim().isEmpty
@@ -324,6 +547,8 @@ class _QuestEditPageState extends ConsumerState<QuestEditPage> {
           manualProgress: _manualProgress,
           pinned: _pinned,
           pinnedAt: _pinned ? now.toIso8601String() : '',
+          media: List.of(_media),
+          parentId: widget.parentId ?? '',
           createdAt: now,
           updatedAt: now,
         ),
@@ -350,6 +575,7 @@ class _QuestEditPageState extends ConsumerState<QuestEditPage> {
               ? (q.pinnedAt.isEmpty ? now.toIso8601String() : q.pinnedAt)
               : '',
           clearPinnedAt: !_pinned,
+          media: List.of(_media),
         ),
       );
     }

@@ -21,7 +21,7 @@ class HeatCell {
 ///
 /// 有意不含任何业务语义：颜色、提示、周行头都由调用方给出，
 /// 所以 core 层不依赖任何 feature（习惯模块把打卡状态映射成颜色即可）。
-class HeatMap extends StatelessWidget {
+class HeatMap extends StatefulWidget {
   final List<HeatCell> cells;
 
   /// 显示多少周（含本周）
@@ -66,30 +66,74 @@ class HeatMap extends StatelessWidget {
     this.scrollable = false,
   });
 
+  /// 横向滚动区（测试与「滚到今天」定位用）
+  static const scrollKey = ValueKey('heatmap-scroll');
+
+  @override
+  State<HeatMap> createState() => _HeatMapState();
+}
+
+class _HeatMapState extends State<HeatMap> {
   static const _weekdayLabels = ['一', '二', '三', '四', '五', '六', '日'];
+
+  final ScrollController _scroll = ScrollController();
+
+  /// 已经做过「滚到最右（今天）」这一步了吗
+  bool _jumped = false;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(HeatMap old) {
+    super.didUpdateWidget(old);
+    // 周数变了（比如换了习惯 / 改了一年的范围）→ 重新定位到今天
+    if (old.weeks != widget.weeks || old.cells.length != widget.cells.length) {
+      _jumped = false;
+    }
+  }
+
+  /// 大图默认要看到**今天**，而不是停在一年前的那一端。
+  ///
+  /// 之前不看这个：53 周的图宽约 1200px，手机一屏只露出最左边十几周 ——
+  /// 对新建不久的习惯，那一整屏全是「习惯还没创建」的灰格子，
+  /// 看起来就像「热力图没有颜色、完全用不了」。
+  void _jumpToEndSoon() {
+    if (!widget.scrollable || _jumped) return;
+    _jumped = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      final max = _scroll.position.maxScrollExtent;
+      if (max > 0) _scroll.jumpTo(max);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final map = {for (final c in cells) c.date: c};
+    _jumpToEndSoon();
+    final map = {for (final c in widget.cells) c.date: c};
     final today = AppTime.dateOnly(DateTime.now());
-    final anchor = DateTime.tryParse(anchorDate ?? today) ?? DateTime.now();
+    final anchor = DateTime.tryParse(widget.anchorDate ?? today) ?? DateTime.now();
     // 本周的周一
     final lastMonday = DateTime(
       anchor.year,
       anchor.month,
       anchor.day,
     ).subtract(Duration(days: anchor.weekday - 1));
-    final hasHeaders = weekHeaders.values.any((v) => v.isNotEmpty);
+    final hasHeaders = widget.weekHeaders.values.any((v) => v.isNotEmpty);
 
     final columns = <Widget>[];
-    for (var i = weeks - 1; i >= 0; i--) {
+    for (var i = widget.weeks - 1; i >= 0; i--) {
       final monday = lastMonday.subtract(Duration(days: 7 * i));
       final children = <Widget>[];
       if (hasHeaders) {
-        final text = weekHeaders[AppTime.dateOnly(monday)] ?? '';
+        final text = widget.weekHeaders[AppTime.dateOnly(monday)] ?? '';
         children.add(
           SizedBox(
-            height: cellSize * 1.1,
+            height: widget.cellSize * 1.1,
             child: Center(
               child: Text(
                 text,
@@ -117,14 +161,14 @@ class HeatMap extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (showWeekdayLabels) ...[
+        if (widget.showWeekdayLabels) ...[
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (hasHeaders) SizedBox(height: cellSize * 1.1),
+              if (hasHeaders) SizedBox(height: widget.cellSize * 1.1),
               for (var r = 0; r < 7; r++)
                 SizedBox(
-                  height: cellSize,
+                  height: widget.cellSize,
                   width: 14,
                   child: Center(
                     child: Text(
@@ -143,35 +187,40 @@ class HeatMap extends StatelessWidget {
           const SizedBox(width: 4),
         ],
         for (var i = 0; i < columns.length; i++) ...[
-          if (i > 0) SizedBox(width: gap),
+          if (i > 0) SizedBox(width: widget.gap),
           columns[i],
         ],
       ],
     );
 
-    return scrollable
-        ? SingleChildScrollView(scrollDirection: Axis.horizontal, child: grid)
+    return widget.scrollable
+        ? SingleChildScrollView(
+            key: HeatMap.scrollKey,
+            controller: _scroll,
+            scrollDirection: Axis.horizontal,
+            child: grid,
+          )
         : grid;
   }
 
   Widget _square(String date, HeatCell? cell, bool isToday) {
-    final isSelected = selected.contains(date);
+    final isSelected = widget.selected.contains(date);
     return GestureDetector(
       key: ValueKey('heat-$date'),
-      onTap: onTapDay == null ? null : () => onTapDay!(date),
+      onTap: widget.onTapDay == null ? null : () => widget.onTapDay!(date),
       child: Tooltip(
         message: cell?.tooltip ?? date,
         waitDuration: const Duration(milliseconds: 500),
         child: Container(
-          width: cellSize,
-          height: cellSize,
-          margin: EdgeInsets.only(bottom: gap),
+          width: widget.cellSize,
+          height: widget.cellSize,
+          margin: EdgeInsets.only(bottom: widget.gap),
           decoration: BoxDecoration(
             color: cell?.color ?? const Color(0xFFF0F1F3),
-            borderRadius: BorderRadius.circular(cellSize * 0.24),
+            borderRadius: BorderRadius.circular(widget.cellSize * 0.24),
             border: isSelected
                 ? Border.all(color: AppTheme.textPrimary, width: 2)
-                : highlightToday && isToday
+                : widget.highlightToday && isToday
                 ? Border.all(color: AppTheme.textSecondary, width: 1)
                 : null,
           ),

@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -128,6 +128,7 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
           ),
         ),
       );
+      _toastAdded(type);
       return;
     }
     final store = await ref.read(jsonStoreProvider.future);
@@ -137,7 +138,25 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
       setState(
         () => _media.add(MediaAttachment(type: type, file: name, size: size)),
       );
+      _toastAdded(type);
     }
+  }
+
+  /// 添加附件后的即时反馈（与日记 / 任务 / 笔记一致）
+  void _toastAdded(MediaType type) {
+    if (!mounted) return;
+    showAttachmentAddedToast(context, type, _media.length);
+  }
+
+  /// 已添加的附件：添加后立刻铺开缩略图（公共组件 [MediaThumbStrip]）
+  Widget _buildAttachedStrip() {
+    final root = ref.read(jsonStoreProvider).valueOrNull?.root.path;
+    final mediaDir = root == null ? null : p.join(root, todoMediaDir(_itemId));
+    return MediaThumbStrip(
+      media: _media,
+      mediaDir: mediaDir,
+      onRemove: (m) => setState(() => _media.remove(m)),
+    );
   }
 
   bool _recording = false;
@@ -159,6 +178,7 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
                 MediaAttachment(type: MediaType.audio, file: name, size: len),
               ),
             );
+            _toastAdded(MediaType.audio);
           }
         }
       }
@@ -211,6 +231,7 @@ class _TodoEditPageState extends ConsumerState<TodoEditPage> {
           const SizedBox(height: 8),
           _buildToolbar(context),
           Expanded(child: _buildBody()),
+          _buildAttachedStrip(),
           _buildAttachmentBar(),
         ],
       ),

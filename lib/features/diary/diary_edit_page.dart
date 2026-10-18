@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -140,6 +140,7 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
           ),
         );
       });
+      _toastAdded(type);
       return;
     }
     final store = await ref.read(jsonStoreProvider.future);
@@ -149,9 +150,15 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
       setState(() {
         _media.add(MediaAttachment(type: type, file: name, size: size));
       });
+      _toastAdded(type);
     }
   }
 
+  /// 添加附件后的即时反馈（公共实现，各编辑页一致）
+  void _toastAdded(MediaType type) {
+    if (!mounted) return;
+    showAttachmentAddedToast(context, type, _media.length);
+  }
   Future<void> _showLargeVideoDialog() async {
     final pathCtrl = TextEditingController();
     final ok = await showDialog<bool>(
@@ -247,6 +254,7 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
               ),
             ),
           ),
+          _buildAttachedStrip(),
           _buildAttachmentBar(),
         ],
       ),
@@ -316,6 +324,16 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
     );
   }
 
+  /// 已添加的附件：添加后立刻在编辑区铺开（公共组件 [MediaThumbStrip]）
+  Widget _buildAttachedStrip() {
+    final root = ref.read(jsonStoreProvider).valueOrNull?.root.path;
+    final mediaDir = root == null ? null : p.join(root, diaryMediaDir(_entryId));
+    return MediaThumbStrip(
+      media: _media,
+      mediaDir: mediaDir,
+      onRemove: (m) => setState(() => _media.remove(m)),
+    );
+  }
   /// 附件操作栏
   Widget _buildAttachmentBar() {
     return SafeArea(
@@ -396,6 +414,7 @@ class _DiaryEditPageState extends ConsumerState<DiaryEditPage> {
                 MediaAttachment(type: MediaType.audio, file: name, size: size),
               ),
             );
+            _toastAdded(MediaType.audio);
           }
         }
       }

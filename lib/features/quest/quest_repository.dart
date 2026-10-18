@@ -100,14 +100,14 @@ class QuestListNotifier extends AsyncNotifier<List<Quest>> {
 
   // ── 保存 / 局部修改 ─────────────────────────────────────────────────────
 
-  /// 新建或整体保存（编辑页用）。新建的顶层任务默认排在最后。
+  /// 新建或整体保存（编辑页用）。新建的任务排在**同级**末尾
+  /// （顶层任务 = 顶层列表末尾，子项目 = 该父任务下的末尾）。
   Future<void> save(Quest q) async {
     var toWrite = q;
-    if (q.parentId.isEmpty) {
-      final roots = QuestLogic.childrenOf(await _allFromDisk(), '');
-      if (!roots.any((r) => r.id == q.id)) {
-        toWrite = q.copyWith(order: roots.length);
-      }
+    final all = await _allFromDisk();
+    final siblings = QuestLogic.childrenOf(all, q.parentId);
+    if (!siblings.any((r) => r.id == q.id)) {
+      toWrite = q.copyWith(order: siblings.length);
     }
     await _write(toWrite.copyWith(updatedAt: DateTime.now()));
   }

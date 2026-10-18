@@ -5,6 +5,7 @@ import '../../core/models/ui_prefs.dart';
 import '../../core/storage/ui_prefs_providers.dart';
 import '../../core/theme.dart';
 import 'quest_detail_page.dart';
+import 'quest_edit_page.dart';
 import 'quest_models.dart';
 import 'quest_repository.dart';
 
@@ -245,6 +246,24 @@ class _SubQuestRowState extends ConsumerState<_SubQuestRow> {
                     color: color,
                   ),
                 ),
+                // 子项目的「完成」快捷入口。
+                // 之前这里只有「打开 / 层级调整 / 删除」，想完成子项目必须
+                // 打开 → 编辑 → 改状态 → 保存，实际上等于「只能创建、无法完成」。
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  tooltip: resolved ? '恢复为进行中' : '标记完成',
+                  icon: Icon(
+                    resolved
+                        ? Icons.check_circle
+                        : Icons.check_circle_outline,
+                    size: 20,
+                    color: resolved
+                        ? const Color(0xFF30A46C)
+                        : AppTheme.textSecondary,
+                  ),
+                  onPressed: () => _toggleResolved(context, ref, q),
+                ),
                 _menu(context, ref, q),
               ],
             ),
@@ -263,13 +282,37 @@ class _SubQuestRowState extends ConsumerState<_SubQuestRow> {
     );
   }
 
+  /// 一键完成 / 恢复（子项目最常用的操作，不该藏在编辑页里）
+  Future<void> _toggleResolved(
+    BuildContext context,
+    WidgetRef ref,
+    Quest q,
+  ) async {
+    final target = QuestLogic.isResolved(q)
+        ? QuestStatus.active
+        : QuestStatus.done;
+    final err = await ref.read(questListProvider.notifier).setStatus(q.id, target);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            err ??
+                (target == QuestStatus.done ? '已标记完成' : '已恢复为进行中'),
+          ),
+          duration: Duration(seconds: err == null ? 2 : 5),
+        ),
+      );
+  }
+
   Widget _menu(BuildContext context, WidgetRef ref, Quest q) {
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert, size: 16),
       tooltip: '调整 / 操作',
       onSelected: (v) => _act(context, ref, q, v),
-      itemBuilder: (_) => const [
-        PopupMenuItem(
+      itemBuilder: (_) => [
+        const PopupMenuItem(
           value: 'open',
           child: ListTile(
             contentPadding: EdgeInsets.zero,
@@ -277,7 +320,7 @@ class _SubQuestRowState extends ConsumerState<_SubQuestRow> {
             title: Text('打开'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'add',
           child: ListTile(
             contentPadding: EdgeInsets.zero,
@@ -285,7 +328,36 @@ class _SubQuestRowState extends ConsumerState<_SubQuestRow> {
             title: Text('添加子项目'),
           ),
         ),
-        PopupMenuItem(
+        // 状态操作：完成有行内按钮，这里补「暂停 / 放弃 / 恢复」
+        if (q.status != QuestStatus.paused)
+          const PopupMenuItem(
+            value: 'paused',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.pause_circle_outline, size: 18),
+              title: Text('设为暂停'),
+            ),
+          ),
+        if (!QuestLogic.isResolved(q))
+          const PopupMenuItem(
+            value: 'dropped',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.cancel_outlined, size: 18),
+              title: Text('设为放弃'),
+              subtitle: Text('放弃也算了结，不再卡住父任务', style: TextStyle(fontSize: 11)),
+            ),
+          ),
+        if (QuestLogic.isResolved(q))
+          const PopupMenuItem(
+            value: 'active',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.play_circle_outline, size: 18),
+              title: Text('恢复为进行中'),
+            ),
+          ),
+        const PopupMenuItem(
           value: 'up',
           child: ListTile(
             contentPadding: EdgeInsets.zero,
@@ -293,7 +365,7 @@ class _SubQuestRowState extends ConsumerState<_SubQuestRow> {
             title: Text('上移'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'down',
           child: ListTile(
             contentPadding: EdgeInsets.zero,
@@ -301,7 +373,7 @@ class _SubQuestRowState extends ConsumerState<_SubQuestRow> {
             title: Text('下移'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'indent',
           child: ListTile(
             contentPadding: EdgeInsets.zero,
@@ -310,7 +382,7 @@ class _SubQuestRowState extends ConsumerState<_SubQuestRow> {
             subtitle: Text('挂到上一个同级下面', style: TextStyle(fontSize: 11)),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'outdent',
           child: ListTile(
             contentPadding: EdgeInsets.zero,
@@ -319,7 +391,7 @@ class _SubQuestRowState extends ConsumerState<_SubQuestRow> {
             subtitle: Text('与父任务平级', style: TextStyle(fontSize: 11)),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'move',
           child: ListTile(
             contentPadding: EdgeInsets.zero,
@@ -328,7 +400,7 @@ class _SubQuestRowState extends ConsumerState<_SubQuestRow> {
             subtitle: Text('选一个新的父任务', style: TextStyle(fontSize: 11)),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: 'delete',
           child: ListTile(
             contentPadding: EdgeInsets.zero,
@@ -363,6 +435,12 @@ class _SubQuestRowState extends ConsumerState<_SubQuestRow> {
       case 'add':
         await addSubQuest(context, ref, q.id);
         return;
+      case 'paused':
+        err = await n.setStatus(q.id, QuestStatus.paused);
+      case 'dropped':
+        err = await n.setStatus(q.id, QuestStatus.dropped);
+      case 'active':
+        err = await n.setStatus(q.id, QuestStatus.active);
       case 'up':
         err = await n.moveSibling(q.id, -1);
       case 'down':
@@ -474,42 +552,17 @@ class _SubQuestRowState extends ConsumerState<_SubQuestRow> {
   }
 }
 
-/// 新建一个子项目（标题输入框）
+/// 新建一个子项目。
+///
+/// 走**完整的编辑页**（标题 / 描述 / 附件 / 时间），不再是一个只有名字的输入框 ——
+/// 子项目常常需要一张参考图、一段语音或几个文件来说明，光有标题不够用。
 Future<void> addSubQuest(
   BuildContext context,
   WidgetRef ref,
   String parentId,
 ) async {
-  final ctrl = TextEditingController();
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('添加子项目'),
-      content: TextField(
-        controller: ctrl,
-        autofocus: true,
-        decoration: const InputDecoration(
-          labelText: '子项目名称',
-          hintText: '如：收集资料 / 写第一章',
-          border: OutlineInputBorder(),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('添加'),
-        ),
-      ],
-    ),
+  await Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => QuestEditPage(parentId: parentId)),
   );
-  if (ok != true) return;
-  final title = ctrl.text.trim();
-  if (title.isEmpty) return;
-  await ref
-      .read(questListProvider.notifier)
-      .createChild(parentId, title: title);
 }

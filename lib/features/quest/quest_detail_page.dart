@@ -1,14 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../core/models/common.dart';
+import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
+import '../../core/widgets/attachment_view.dart';
 import '../todo/todo_models.dart';
 import '../todo/todo_repository.dart';
 import 'quest_edit_page.dart';
 import 'quest_models.dart';
 import 'quest_repository.dart';
 import 'quest_subtree.dart';
+
+/// 状态中文名（详情页的状态菜单用）
+String _statusText(QuestStatus s) {
+  switch (s) {
+    case QuestStatus.active:
+      return '进行中';
+    case QuestStatus.paused:
+      return '暂停';
+    case QuestStatus.done:
+      return '已完成';
+    case QuestStatus.dropped:
+      return '已放弃';
+  }
+}
 
 /// 任务详情页：**推进这个任务的地方**。
 ///
@@ -61,6 +78,44 @@ class QuestDetailPage extends ConsumerWidget {
             onPressed: () =>
                 ref.read(questListProvider.notifier).togglePin(q.id),
           ),
+          // 状态切换放在详情页：子项目只会在这里被打开，
+          // 没有这个入口就只能绕到「编辑 → 状态」里去改，等于改不了。
+          PopupMenuButton<QuestStatus>(
+            tooltip: '设置状态',
+            icon: const Icon(Icons.flag_outlined),
+            onSelected: (s) async {
+              final err = await ref
+                  .read(questListProvider.notifier)
+                  .setStatus(q.id, s);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text(err ?? '状态已改为「${_statusText(s)}」'),
+                    duration: Duration(seconds: err == null ? 2 : 5),
+                  ),
+                );
+            },
+            itemBuilder: (_) => [
+              for (final s in QuestStatus.values)
+                PopupMenuItem(
+                  value: s,
+                  child: Row(
+                    children: [
+                      // 标出当前状态，避免「点了没反应」的错觉
+                      SizedBox(
+                        width: 24,
+                        child: s == q.status
+                            ? const Icon(Icons.check, size: 16)
+                            : null,
+                      ),
+                      Text('设为${_statusText(s)}'),
+                    ],
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             tooltip: '编辑',
             icon: const Icon(Icons.edit_outlined),
@@ -101,11 +156,59 @@ class QuestDetailPage extends ConsumerWidget {
           QuestSubtree(parentId: q.id),
           const SizedBox(height: 14),
           _milestones(context, ref, q),
+          if (q.media.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _attachments(context, ref, q),
+          ],
           const SizedBox(height: 14),
           _actions(context, ref, q),
           const SizedBox(height: 14),
           _invest(context, ref, q, logs, today),
         ],
+      ),
+    );
+  }
+
+  // ── 附件：参考图 / 录音 / 视频 / 文件 ──────────────────────────────────
+
+  Widget _attachments(BuildContext context, WidgetRef ref, Quest q) {
+    final root = ref.read(jsonStoreProvider).valueOrNull?.root.path;
+    final mediaDir = root == null ? null : p.join(root, questMediaDir(q.id));
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  '附件（${q.media.length}）',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    '点一下打开：图片看大图 / 录音直接播 / 文件交给系统程序',
+                    style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => QuestEditPage(quest: q)),
+                  ),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('添加'),
+                ),
+              ],
+            ),
+            for (final m in q.media) AttachmentTile(media: m, mediaDir: mediaDir),
+          ],
+        ),
       ),
     );
   }

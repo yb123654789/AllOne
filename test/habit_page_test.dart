@@ -145,9 +145,39 @@ void main() {
       await tester.tap(find.byTooltip('详情与热力图'));
       await tester.pumpAndSettle();
 
-      expect(find.text('打卡热力图（近一年）'), findsOneWidget);
+      expect(find.text('打卡热力图（创建至今 · 最多一年）'), findsOneWidget);
       expect(find.text('近一年统计'), findsOneWidget);
       expect(find.byType(HeatMap), findsOneWidget);
+    });
+  });
+
+  group('习惯卡片 - 近 7 天状态条', () {
+    testWidgets('卡片上有 7 个色块，颜色随打卡状态变化', (tester) async {
+      await seedHabit(
+        habit(target: HabitDailyTarget.once, targetValue: 1),
+      );
+      final now = DateTime.now();
+      final failedDay = AppTime.dateOnly(
+        now.subtract(const Duration(days: 2)),
+      );
+      await seedCheckins('h1', {today: 1, failedDay: -1});
+      await pump(tester, const HabitPage());
+
+      Color? colorOf(String date) {
+        final c = tester.widget<Container>(
+          find.byKey(ValueKey('recent-$date')),
+        );
+        return (c.decoration as BoxDecoration).color;
+      }
+
+      expect(colorOf(today), const Color(0xFF30A46C), reason: '今天已打卡 → 绿');
+      expect(colorOf(failedDay), const Color(0xFFE5484D), reason: '标记未完成 → 深红');
+
+      // 正好 7 格：6 天前 ~ 今天
+      final sixth = AppTime.dateOnly(now.subtract(const Duration(days: 6)));
+      final eighth = AppTime.dateOnly(now.subtract(const Duration(days: 7)));
+      expect(find.byKey(ValueKey('recent-$sixth')), findsOneWidget);
+      expect(find.byKey(ValueKey('recent-$eighth')), findsNothing);
     });
   });
 
@@ -157,9 +187,10 @@ void main() {
       await seedCheckins('h1', {});
       await pump(tester, const HabitDetailPage(habitId: 'h1'));
 
-      // 选一个较早的日期（在大图左侧，初始视口内）
+      // 选一个「习惯创建之后、但不在初始视口里」的日期：
+      // 热力图现在只铺到创建那一周，且默认滚到今天，所以要靠 ensureVisible 滚过去
       final target = AppTime.dateOnly(
-        DateTime.now().subtract(const Duration(days: 300)),
+        DateTime.now().subtract(const Duration(days: 100)),
       );
       final cell = find.byKey(ValueKey('heat-$target'));
       await tester.ensureVisible(cell);
@@ -197,7 +228,7 @@ void main() {
       await seedCheckins('h1', {});
       await pump(tester, const HabitDetailPage(habitId: 'h1'));
 
-      for (final offset in [300, 301]) {
+      for (final offset in [100, 101]) {
         final d = AppTime.dateOnly(
           DateTime.now().subtract(Duration(days: offset)),
         );

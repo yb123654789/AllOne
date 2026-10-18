@@ -239,6 +239,23 @@ class _DiaryPageState extends ConsumerState<DiaryPage> {
                     ),
                     const SizedBox(width: 4),
                   ],
+                  // 有附件就在列表上标出来：不然保存后要一条条点进去才知道
+                  // 「这篇到底带没带照片 / 录音」，看起来像没生效。
+                  if (e.media.isNotEmpty) ...[
+                    const Icon(
+                      Icons.attach_file,
+                      size: 15,
+                      color: AppTheme.textSecondary,
+                    ),
+                    Text(
+                      '${e.media.length}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                   Expanded(
                     child: Text(
                       e.title.isEmpty ? '无标题' : e.title,

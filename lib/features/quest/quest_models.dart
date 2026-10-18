@@ -1,3 +1,5 @@
+import '../../core/models/common.dart';
+
 /// 任务状态。
 ///
 /// 「暂停」与「放弃」是长期事情必须有的两档：很多任务不是做完了，
@@ -144,6 +146,11 @@ class Quest {
   /// 关联的待办 id（行动项）
   final List<String> todoIds;
 
+  /// 附件（照片 / 录音 / 视频 / 文件），存放在 `quest/quests/<id>/media/`。
+  ///
+  /// 子项目同样支持：拆着做事的时候，一张参考图或一段语音往往比写一段说明更省事。
+  final List<MediaAttachment> media;
+
   /// 父任务 id（`''` = 顶层任务）。
   ///
   /// 子项目其实就是**挂在别的任务下的任务**（同类型、可多层），
@@ -174,6 +181,7 @@ class Quest {
     this.pinnedAt = '',
     this.milestones = const [],
     this.todoIds = const [],
+    this.media = const [],
     this.parentId = '',
     this.order = 0,
     this.archived = false,
@@ -239,6 +247,7 @@ class Quest {
     'pinnedAt': pinnedAt,
     'milestones': milestones.map((m) => m.toJson()).toList(),
     'todoIds': todoIds,
+    'media': media.map((m) => m.toJson()).toList(),
     'parentId': parentId,
     'order': order,
     'archived': archived,
@@ -269,6 +278,11 @@ class Quest {
         const [],
     todoIds:
         (j['todoIds'] as List?)?.whereType<String>().toList() ?? const [],
+    media:
+        (j['media'] as List?)
+            ?.map((e) => MediaAttachment.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const [],
     parentId: j['parentId'] as String? ?? '',
     order: (j['order'] as num?)?.toInt() ?? 0,
     archived: j['archived'] as bool? ?? false,
@@ -292,6 +306,7 @@ class Quest {
     String? pinnedAt,
     List<Milestone>? milestones,
     List<String>? todoIds,
+    List<MediaAttachment>? media,
     String? parentId,
     int? order,
     bool? archived,
@@ -315,6 +330,7 @@ class Quest {
     pinnedAt: clearPinnedAt ? '' : (pinnedAt ?? this.pinnedAt),
     milestones: milestones ?? this.milestones,
     todoIds: todoIds ?? this.todoIds,
+    media: media ?? this.media,
     parentId: parentId ?? this.parentId,
     order: order ?? this.order,
     archived: archived ?? this.archived,

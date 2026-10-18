@@ -540,3 +540,169 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
     );
   }
 }
+
+/// 已添加附件的**缩略图条**（日记 / 待办 / 任务 / 笔记共用）。
+///
+/// 为什么要有它：以前加完附件，界面上只有底部一个「附件(n)」计数按钮，
+/// 正文区空空的 —— 得再点开弹层、再一条条点开才看得到内容，
+/// 用起来像「慢一拍」。这里让附件**加完就铺开**：
+/// - 照片直接显示真实缩略图，视频 / 录音 / 文件给块状图标；
+/// - 新附件排在最右，数量增加时**自动滚到它**；
+/// - 点缩略图打开（大图 / 播放 / 交给系统程序），右上角 × 移除。
+class MediaThumbStrip extends StatefulWidget {
+  final List<MediaAttachment> media;
+
+  /// 内嵌附件所在目录（绝对路径）；null = 路径未知（尚未保存的新条目）
+  final String? mediaDir;
+
+  /// 传 null 表示不显示删除按钮（只读展示）
+  final void Function(MediaAttachment media)? onRemove;
+
+  final double thumbSize;
+  final EdgeInsetsGeometry padding;
+
+  const MediaThumbStrip({
+    super.key,
+    required this.media,
+    this.mediaDir,
+    this.onRemove,
+    this.thumbSize = 76,
+    this.padding = const EdgeInsets.fromLTRB(10, 4, 10, 6),
+  });
+
+  @override
+  State<MediaThumbStrip> createState() => _MediaThumbStripState();
+}
+
+class _MediaThumbStripState extends State<MediaThumbStrip> {
+  final ScrollController _scroll = ScrollController();
+
+  @override
+  void didUpdateWidget(MediaThumbStrip old) {
+    super.didUpdateWidget(old);
+    // 又多了一个附件 → 滚到最右边，让新加的那个出现在视野里
+    if (widget.media.length > old.media.length) _scrollToEndSoon();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _scrollToEndSoon() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      final max = _scroll.position.maxScrollExtent;
+      if (max <= 0) return;
+      _scroll.animateTo(
+        max,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.media.isEmpty) return const SizedBox.shrink();
+    return Container(
+      color: Colors.white,
+      padding: widget.padding,
+      child: SizedBox(
+        height: widget.thumbSize + 6,
+        child: ListView.separated(
+          controller: _scroll,
+          scrollDirection: Axis.horizontal,
+          itemCount: widget.media.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (_, i) {
+            final m = widget.media[i];
+            return _thumb(m, () {
+              final cb = widget.onRemove;
+              if (cb != null) cb(m);
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _thumb(MediaAttachment m, VoidCallback onRemove) {
+    final file = resolveMediaFile(m, widget.mediaDir);
+    final name = mediaDisplayName(m);
+    final size = widget.thumbSize;
+    Widget content;
+    if (m.type == MediaType.photo && file != null && file.existsSync()) {
+      content = Image.file(
+        file,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _iconBlock(m.type, size),
+      );
+    } else {
+      content = _iconBlock(m.type, size);
+    }
+    return Tooltip(
+      message: '$name（点一下打开）',
+      waitDuration: const Duration(milliseconds: 300),
+      child: Stack(
+        children: [
+          InkWell(
+            onTap: () => openAttachment(context, m, mediaDir: widget.mediaDir),
+            borderRadius: BorderRadius.circular(8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(width: size, height: size, child: content),
+            ),
+          ),
+          if (widget.onRemove != null)
+            Positioned(
+              right: 0,
+              top: 0,
+              child: InkWell(
+                onTap: onRemove,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: Color(0xCC000000),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, size: 12, color: Colors.white),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _iconBlock(MediaType type, double size) {
+    return Container(
+      width: size,
+      height: size,
+      color: AppTheme.primary.withValues(alpha: 0.08),
+      child: Center(
+        child: Icon(mediaTypeIcon(type), size: 26, color: AppTheme.primary),
+      ),
+    );
+  }
+}
+
+/// 添加附件后的即时提示（各编辑页共用）：加了什么、一共几个。
+void showAttachmentAddedToast(
+  BuildContext context,
+  MediaType type,
+  int total,
+) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text('已添加${mediaTypeLabel(type)} · 共 $total 个附件'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+}
