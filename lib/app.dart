@@ -11,6 +11,7 @@ import 'features/calendar/calendar_repository.dart';
 import 'features/diary/diary_page.dart';
 import 'features/habit/habit_page.dart';
 import 'features/ledger/ledger_page.dart';
+import 'features/notes/notes_page.dart';
 import 'features/quest/quest_page.dart';
 import 'features/schedule/schedule_page.dart';
 import 'features/todo/todo_page.dart';
@@ -43,6 +44,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   /// 功能 key -> 页面（顺序与 [kAppFeatures] 一致）
   static final Map<String, Widget> _pages = {
     'diary': const DiaryPage(),
+    'notes': const NotesPage(),
     'todo': const TodoPage(),
     'quest': const QuestPage(),
     'habit': const HabitPage(),
@@ -94,6 +96,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       body: IndexedStack(index: safeBodyIndex, children: children),
       bottomNavigationBar: NavigationBar(
         selectedIndex: safeBarIndex,
+        // 功能多（加笔记后最多 9 个）时，只给选中项显示文字：
+        // 9 个"图标 + 文字"挤在手机宽度里会互相挤压 / 溢出。
+        // 想看全部名称可展开选中项，或在「工具 → 底部导航显示设置」里精简。
+        labelBehavior: visible.length > 5
+            ? NavigationDestinationLabelBehavior.onlyShowSelected
+            : NavigationDestinationLabelBehavior.alwaysShow,
         onDestinationSelected: (i) =>
             ref.read(homeTabProvider.notifier).state = visible[i].key,
         destinations: [

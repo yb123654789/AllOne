@@ -38,6 +38,9 @@ class UiPrefs {
   /// 默认 `deadline`：保持加这个功能之前的行为不变。
   static const String todoSortModeKey = 'todoSortMode';
 
+  /// 笔记列表视图：`true` = 按分组折叠展示（默认），`false` = 平铺 + 分组筛选。
+  static const String notesGroupedViewKey = 'notesGroupedView';
+
   /// 读取原始值（供各 feature 自己解析，core 不引入业务类型）
   Object? raw(String key) => values[key];
 

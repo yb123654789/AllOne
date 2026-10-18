@@ -11,6 +11,9 @@ import '../habit/habit_models.dart';
 import '../habit/habit_repository.dart';
 import '../ledger/ledger_models.dart';
 import '../ledger/ledger_repository.dart';
+import '../notes/notes_logic.dart';
+import '../notes/notes_models.dart';
+import '../notes/notes_repository.dart';
 import '../schedule/schedule_logic.dart';
 import '../schedule/schedule_models.dart';
 import '../schedule/schedule_repository.dart';
@@ -42,6 +45,7 @@ class TextExporter {
       '04_schedule.md': _schedule(ref),
       '05_ledger.md': _ledger(ref),
       '06_calendar.md': _calendar(ref),
+      '07_notes.md': await _notes(ref),
     };
 
     for (final entry in files.entries) {
@@ -76,7 +80,8 @@ class TextExporter {
       '- 03_habit.md    习惯\n'
       '- 04_schedule.md 课程表\n'
       '- 05_ledger.md   记账\n'
-      '- 06_calendar.md 日历特殊日子\n\n'
+      '- 06_calendar.md 日历特殊日子\n'
+      '- 07_notes.md    笔记（按主题 + 年月时间线）\n\n'
       '> 完整原始数据（JSON + 附件）请用「设置 → 导出备份 zip」。\n';
 
   static String _diary(WidgetRef ref) {
@@ -299,6 +304,25 @@ class TextExporter {
       b.write('\n');
     }
     return b.toString();
+  }
+
+  /// 笔记：按主题 + 年月时间线导出（与「笔记 → 导出 Markdown」同一套生成逻辑）
+  static Future<String> _notes(WidgetRef ref) async {
+    final topics = (ref.read(noteTopicListProvider).valueOrNull ?? [])
+        .where((t) => !t.inTrash)
+        .toList();
+    final groups = ref.read(noteGroupListProvider).valueOrNull ?? const <NoteGroup>[];
+    final groupNames = {for (final g in groups) g.id: g.name};
+    final entriesByTopic = <String, List<NoteEntry>>{};
+    for (final t in topics) {
+      // 用 .future 取，避免「还没打开过该主题 → valueOrNull 为空 → 导出丢内容」
+      entriesByTopic[t.id] = await ref.read(noteEntryListProvider(t.id).future);
+    }
+    return notesToMarkdown(
+      topics: topics,
+      groupNames: groupNames,
+      entriesByTopic: entriesByTopic,
+    );
   }
 
   static String _calendar(WidgetRef ref) {

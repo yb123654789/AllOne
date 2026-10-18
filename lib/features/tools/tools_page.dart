@@ -12,6 +12,7 @@ import '../../core/storage/nav_providers.dart';
 import '../../core/theme.dart';
 import '../diary/diary_import_page.dart';
 import '../diary/diary_templates_page.dart';
+import '../notes/notes_export.dart';
 import '../schedule/course_edit_page.dart';
 import '../schedule/course_stats_page.dart';
 import '../schedule/term_manage_page.dart';
@@ -132,6 +133,21 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
       await Share.shareXFiles([
         XFile(zipPath),
       ], text: 'AllOne 通用文本导出（Markdown / txt，可用记事本打开）');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('导出失败：$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// 导出全部笔记（合并成一份 Markdown 后分享）
+  Future<void> _exportNotes() async {
+    setState(() => _busy = true);
+    try {
+      await NotesExporter.exportAll(ref);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -289,9 +305,21 @@ class _ToolsPageState extends ConsumerState<ToolsPage> {
                   ),
                   title: const Text('导出通用文本'),
                   subtitle: const Text(
-                    '将日记 / 待办 / 习惯 / 课程 / 记账导出为 Markdown / txt，任何设备可用记事本打开',
+                    '将日记 / 笔记 / 待办 / 习惯 / 课程 / 记账导出为 Markdown / txt，任何设备可用记事本打开',
                   ),
                   onTap: _busy ? null : _exportText,
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(
+                    Icons.note_alt_outlined,
+                    color: AppTheme.primary,
+                  ),
+                  title: const Text('导出全部笔记'),
+                  subtitle: const Text(
+                    '每个主题一份 Markdown（含年月时间线），方便外发 / 归档',
+                  ),
+                  onTap: _busy ? null : _exportNotes,
                 ),
                 const Divider(),
                 ListTile(

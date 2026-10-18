@@ -8,6 +8,7 @@ import '../../core/storage/storage_providers.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/attachment_view.dart';
 import '../../core/widgets/location_map_view.dart';
+import '../notes/notes_diary_import.dart';
 import 'diary_edit_page.dart';
 import 'diary_models.dart';
 import 'diary_repository.dart';
@@ -28,6 +29,11 @@ class DiaryDetailPage extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.note_add_outlined),
+            tooltip: '转存为笔记',
+            onPressed: () => showDiaryTransferFlow(context, ref, [entry]),
+          ),
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             tooltip: '编辑',

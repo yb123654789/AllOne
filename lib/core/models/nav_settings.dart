@@ -26,6 +26,12 @@ const List<AppFeature> kAppFeatures = [
     selectedIcon: Icons.menu_book,
   ),
   AppFeature(
+    key: 'notes',
+    label: '笔记',
+    icon: Icons.note_alt_outlined,
+    selectedIcon: Icons.note_alt,
+  ),
+  AppFeature(
     key: 'todo',
     label: '待办',
     icon: Icons.check_circle_outline,
