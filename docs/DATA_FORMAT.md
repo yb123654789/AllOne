@@ -16,6 +16,14 @@ AllOneData/
 │       ├── <entryId>.json   # 日记元数据 + 正文
 │       └── <entryId>/       # 同一 id 的附件目录（与 .json 并列）
 │           └── media/       # 附件（照片/录音/视频/文件）
+├── notes/                   # 笔记模块（主题 → 记录，跨月跨年累积）
+│   ├── groups/              # 分组（大类别 / 研究领域，可多归属）
+│   │   └── <groupId>.json
+│   └── topics/
+│       ├── <topicId>.json            # 主题元数据（一本书 / 一个技能 / 一个项目）
+│       └── <topicId>/entries/        # 该主题下的记录
+│           ├── <entryId>.json
+│           └── <entryId>/media/      # 记录的附件
 ├── todo/                    # 待办模块
 │   ├── templates/           # 待办模板
 │   └── items/
@@ -446,6 +454,9 @@ settings/
     { "id": "m1", "title": "写完全部初稿", "dueDate": "2027-03-31", "done": false, "doneAt": "" }
   ],
   "todoIds": ["20261010101010-00007"],
+  "media": [
+    { "type": "photo", "file": "1787658907441_参考图.jpg", "size": 204800 }
+  ],
   "parentId": "",
   "order": 0,
   "archived": false,
@@ -460,6 +471,8 @@ settings/
 > - `milestones`：阶段目标；**有里程碑时进度 = 已完成数 / 总数**（`manualProgress` 被忽略）。
 > - `todoIds`：关联的**待办 id**（行动项）。任务**只引用不复制**待办数据 ——
 >   待办仍归 `todo/` 管理，被删除后这边只在界面上显示「已失效」。
+> - `media`：附件（照片 / 录音 / 视频 / 文件），放在 `quest/quests/<questId>/media/`；
+>   超过 50 MB 的文件只记 `external` 外部路径引用。**子项目同样支持附件**（2026-10-18 新增）。
 > - `pinned` / `pinnedAt`：钉住（当前重心），总览里排最前。
 > - `archived` / `archivedAt`：回收站。
 
@@ -531,7 +544,79 @@ settings/
 >   `created`（按创建时间）/ `title`（按标题）；只作用于顶层列表。
 > - `questWeights`：任务父进度的加权比例 `{work, invest, milestone}`（默认 0.5 / 0.3 / 0.2）。
 > - `hideResolvedSubtasks`：任务详情页是否隐藏已了结的子项目（缺省 `true`）。
+> - `notesGroupedView`：笔记列表视图 —— `true`（按分组折叠展示，缺省）/ `false`（平铺 + 分组筛选）。
 > - 读取**全程容错**：文件损坏、字段缺失或类型不对都回退到默认值，不影响启动。
+
+### 3.12 笔记 `notes/`
+
+笔记是「主题 → 记录」两层结构，主要用来做**长期积累**：
+一个主题（一本书 / 一个技能 / 一个研究 / 一段工作经历）下，
+可以跨月跨年地一条条追加记录，界面按年月排成时间线。
+
+**分组 `notes/groups/<groupId>.json`**
+
+```json
+{
+  "id": "20261018201500-00042",
+  "name": "大航海时代",
+  "color": "#2E9E6B",
+  "order": 0,
+  "createdAt": "2026-10-18T20:15:00.000",
+  "updatedAt": "2026-10-18T20:15:00.000"
+}
+```
+
+> 分组只是**收纳用的标签**，本身不存记录。删分组不会删主题，只会把该分组
+> 从各主题的归属里移除。
+
+**主题 `notes/topics/<topicId>.json`**
+
+```json
+{
+  "id": "20261018201600-00043",
+  "groupIds": ["20261018201500-00042", "20261018201800-00044"],
+  "title": "《大航海时代》",
+  "intro": "欧洲扩张史，重点看技术与制度",
+  "color": "#2F6FED",
+  "pinned": false,
+  "archived": false,
+  "createdAt": "2026-10-18T20:16:00.000",
+  "updatedAt": "2026-10-18T21:02:00.000"
+}
+```
+
+> - `groupIds`：**可多归属**（一本书既能归到「大航海时代」，也能归到「2026 读完的书」）；
+>   空 / 缺省 = 未分组。**兼容早期只有一个 `groupId`（字符串）的数据**，读取时自动转成数组。
+> - `updatedAt`：最近一次「写入记录」的时间，列表按它排序（置顶优先）。
+> - `deletedAt`：非空 = 在**回收站**（软删除）。主题 JSON、记录、附件都还在，
+>   恢复即清空该字段；彻底删除才会删掉 `topics/<topicId>/` 整个目录。
+
+**记录 `notes/topics/<topicId>/entries/<entryId>.json`**
+
+```json
+{
+  "id": "20261018203000-00045",
+  "topicId": "20261018201600-00043",
+  "title": "第 3 章：香料与航线",
+  "plainText": "香料贸易的利润率…",
+  "occurredAt": "2026-10-18T21:20:00.000",
+  "createdAt": "2026-10-18T21:25:00.000",
+  "updatedAt": "2026-10-18T21:25:00.000",
+  "tags": ["摘抄"],
+  "media": [
+    { "type": "photo", "file": "1787658907441_地图.jpg", "size": 204800 }
+  ],
+  "locationStamp": { "enabled": false, "lat": 0.0, "lng": 0.0, "name": "" }
+}
+```
+
+> - `occurredAt` 是**这件事发生的时间**（可补记过去），时间线按它排序与分月；
+>   `createdAt` 只是落盘时间，仅用于回溯。缺少 `occurredAt` 时退回 `createdAt`。
+> - `topicId` 与所在目录应一致；若不一致（手工搬动 / 老数据），加载时以**目录归属**为准。
+> - 附件目录与 JSON 并列：`notes/topics/<topicId>/entries/<entryId>/media/<文件名>`，
+>   与日记 / 待办同一套约定。
+> - 删除单条记录会连同它的附件目录一起删除（不可恢复）；
+>   删除主题则是软删除，进回收站。
 
 ## 4. 备份格式
 

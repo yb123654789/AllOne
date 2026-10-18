@@ -5,7 +5,7 @@
 
 ## 项目概览
 
-AllOne —— 个人全功能生活管理 App（Flutter，本地存储优先）。功能：📔 日记 · ✅ 待办 · 🔁 习惯 · 🏫 课程表 · 💰 记账 · 📅 日历，另有底部「工具」标签集中收纳备份/导入/导出/模板管理等辅助功能。
+AllOne —— 个人全功能生活管理 App（Flutter，本地存储优先）。功能：📔 日记 · 📝 笔记 · ✅ 待办 · 📌 任务 · 🔁 习惯 · 🏫 课程表 · 💰 记账 · 📅 日历，另有底部「工具」标签集中收纳备份/导入/导出/模板管理等辅助功能。
 **中文 UI、中文注释**，与代码交互时请用中文。
 
 ## 技术栈
@@ -36,7 +36,7 @@ flutter build apk --release     # Android APK
 
 ## 架构约定（务必遵守）
 
-- **分层**：`lib/core/`（核心层：存储引擎、通用模型、组件、备份、工具）与 `lib/features/<name>/`（日记 diary / 待办 todo / 习惯 habit / 课程表 schedule / 记账 ledger / 设置 settings / 日历 calendar / 工具 tools）。
+- **分层**：`lib/core/`（核心层：存储引擎、通用模型、组件、备份、工具）与 `lib/features/<name>/`（日记 diary / 笔记 notes / 待办 todo / 任务 quest / 习惯 habit / 课程表 schedule / 记账 ledger / 设置 settings / 日历 calendar / 工具 tools）。
 - **依赖方向**：feature 只能依赖 core，**core 不依赖任何 feature**；feature 之间**互不引用内部实现**（风险隔离）。日历是只读聚合视图，通过 core 读取各模块数据。
 - **每个 feature 的标准文件**：`<name>_models.dart`（模型）+ `<name>_repository.dart`（Riverpod 仓库）+ `<name>_page.dart`（页面）。新功能按此结构组织。
 
